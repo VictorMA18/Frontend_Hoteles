@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { Button } from "../../src/components/ui/button"
-import { Input } from "../../src/components/ui/Input"
-import { Label } from "../../src/components/ui/label"
-import { Card, CardContent, CardHeader } from "../../src/components/ui/card"
-import { Badge } from "../../src/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/Input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Search, Users, Hotel, CreditCard, Plus, Minus, Calendar, Clock } from "lucide-react"
 
 const Hospedaje = () => {
@@ -140,7 +140,7 @@ const Hospedaje = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
-            <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
+            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
               <Hotel className="h-6 w-6 text-white" />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Sistema de Hospedaje</h1>
@@ -181,8 +181,8 @@ const Hospedaje = () => {
           <Card className="bg-white shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                  <CreditCard className="h-6 w-6 text-purple-600" />
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                  <CreditCard className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Ingresos Total</p>
@@ -195,9 +195,9 @@ const Hospedaje = () => {
 
         {/* Registration Form */}
         <Card className="mb-8 shadow-sm">
-          <CardHeader className="bg-purple-50 border-b">
+          <CardHeader className="bg-blue-50 border-b">
             <div className="flex items-center">
-              <Plus className="h-5 w-5 text-purple-600 mr-2" />
+              <Plus className="h-5 w-5 text-blue-600 mr-2" />
               <h2 className="text-xl font-semibold text-gray-900">Registrar Nuevo Huésped</h2>
             </div>
           </CardHeader>
@@ -258,7 +258,7 @@ const Hospedaje = () => {
                   id="medioPago"
                   value={form.medioPago}
                   onChange={(e) => handleInputChange("medioPago", e.target.value)}
-                  className="w-full h-10 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full h-10 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
                   <option value="">Selecciona método</option>
@@ -304,7 +304,7 @@ const Hospedaje = () => {
               </div>
 
               <div className="md:col-span-2 lg:col-span-3 flex flex-col sm:flex-row gap-4 pt-4">
-                <Button type="submit" className="bg-purple-600 hover:bg-purple-700 flex-1 sm:flex-none">
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none">
                   <Plus className="h-4 w-4 mr-2" />
                   Registrar Huésped
                 </Button>
@@ -383,7 +383,7 @@ const Hospedaje = () => {
                           checked={selectedIds.includes(huesped.id)}
                           onChange={(e) => handleSelectHuesped(huesped.id, e.target.checked)}
                           disabled={huesped.estancia === "finalizada"}
-                          className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

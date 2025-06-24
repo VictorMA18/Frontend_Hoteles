@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Link } from "react-router-dom";
 
 function Footer() {
   return (
@@ -7,35 +7,37 @@ function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">P</span>
               </div>
               <span className="font-bold text-xl">Hotel Princess</span>
             </div>
-            <p className="text-gray-400">Tu hotel de confianza para una experiencia de lujo inolvidable en Madrid.</p>
+            <p className="text-gray-400">
+              Tu hotel de confianza para una experiencia de lujo inolvidable en peru.
+            </p>
           </div>
           <div>
             <h3 className="font-semibold mb-4">Enlaces</h3>
             <ul className="space-y-2 text-gray-400">
               <li>
-                <Link to="/" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Sobre nosotros
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/habitaciones" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Habitaciones
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/servicios" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Servicios
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/galeria" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Galería
-                </Link>
+                </a>
               </li>
             </ul>
           </div>
@@ -43,24 +45,24 @@ function Footer() {
             <h3 className="font-semibold mb-4">Soporte</h3>
             <ul className="space-y-2 text-gray-400">
               <li>
-                <Link to="/ayuda" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Centro de ayuda
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/contacto" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Contacto
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/terminos" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Términos
-                </Link>
+                </a>
               </li>
               <li>
-                <Link to="/privacidad" className="hover:text-white transition-colors">
+                <a href="#" className="hover:text-white transition-colors">
                   Privacidad
-                </Link>
+                </a>
               </li>
             </ul>
           </div>
@@ -69,7 +71,7 @@ function Footer() {
             <div className="space-y-2 text-gray-400">
               <p>📧 reservas@hotelprincess.com</p>
               <p>📞 +34 900 123 456</p>
-              <p>📍 Calle Gran Vía 123, Madrid</p>
+              <p>📍 Calle Gran Vía 123, peru</p>
             </div>
           </div>
         </div>
@@ -78,7 +80,7 @@ function Footer() {
         </div>
       </div>
     </footer>
-  )
+  );
 }
 
-export default Footer
+export default Footer;
