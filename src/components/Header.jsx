@@ -14,18 +14,21 @@ function Header() {
         </div>
 
         <nav className="hidden md:flex items-center space-x-8">
-          <a href="#" className="text-gray-600 hover:text-blue-600 transition-colors">
+          <Link to="/home" className="text-gray-600 hover:text-blue-600 transition-colors">
             Inicio
-          </a>
-          <a href="#" className="text-gray-600 hover:text-blue-600 transition-colors">
-            Habitaciones
-          </a>
-          <a href="#" className="text-gray-600 hover:text-blue-600 transition-colors">
+          </Link>
+          <Link to="/reservation" className="text-gray-600 hover:text-blue-600 transition-colors">
+            Reservas
+          </Link>
+          <Link to="#" className="text-gray-600 hover:text-blue-600 transition-colors">
             Ofertas
-          </a>
-          <a href="#" className="text-gray-600 hover:text-blue-600 transition-colors">
+          </Link>
+          <Link to="#" className="text-gray-600 hover:text-blue-600 transition-colors">
             Contacto
-          </a>
+          </Link>
+          <Link to="/huesped" className="text-gray-600 hover:text-blue-600 transition-colors">
+            Huésped
+          </Link>
         </nav>
 
         <div className="flex items-center space-x-4">

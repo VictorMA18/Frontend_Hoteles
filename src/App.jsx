@@ -5,6 +5,8 @@ import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import HomeUsuario from './pages/HomeUsuario'
+import Reservation from './pages/Reservation'
+import Huesped from './pages/Huesped'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
 
 function App() {
@@ -20,6 +22,8 @@ function App() {
       } />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/reservation" element={<Reservation />} />
+      <Route path="/Huesped" element={<Huesped />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   )
