@@ -1,3 +1,5 @@
+"use client"
+
 import { useState } from "react"
 
 const Configuracion = () => {
@@ -9,10 +11,10 @@ const Configuracion = () => {
   })
 
   const [roomAssignments, setRoomAssignments] = useState({
-    matrimonial: "203,207,303,307,401,403,406",
-    doble: "204,205,305,304,404,405",
-    triple: "201,301",
-    suite: "202,302,402",
+    matrimonial: "101,103,105,203,207,303,307,401,403,406",
+    doble: "102,106,204,205,305,304,404,405",
+    triple: "104,201,301",
+    suite: "107,202,302,402",
   })
 
   const [tempPrices, setTempPrices] = useState({ ...roomPrices })

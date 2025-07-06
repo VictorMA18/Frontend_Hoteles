@@ -1,7 +1,9 @@
+"use client"
+
 import { useState } from "react"
 
 const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
-  const [pisoActual, setPisoActual] = useState("2")
+  const [pisoActual, setPisoActual] = useState("1")
 
   // Filtrar habitaciones por piso
   const habitacionesPorPiso = Object.values(habitacionesData).filter((habitacion) =>
@@ -86,6 +88,12 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
         </div>
         <div className="card-content">
           <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button
+              className={`btn ${pisoActual === "1" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setPisoActual("1")}
+            >
+              1° Piso
+            </button>
             <button
               className={`btn ${pisoActual === "2" ? "btn-primary" : "btn-secondary"}`}
               onClick={() => setPisoActual("2")}
@@ -173,9 +181,10 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
               {/* Primera fila de habitaciones */}
               <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between" }}>
                 {habitacionesPorPiso
-                  .filter(
-                    (h) => Number.parseInt(h.numero.substring(1)) >= 4 && Number.parseInt(h.numero.substring(1)) <= 7,
-                  )
+                  .filter((h) => {
+                    const roomNum = Number.parseInt(h.numero.substring(1))
+                    return pisoActual === "1" ? roomNum >= 4 && roomNum <= 7 : roomNum >= 4 && roomNum <= 7
+                  })
                   .sort((a, b) => Number.parseInt(a.numero.substring(1)) - Number.parseInt(b.numero.substring(1)))
                   .map((habitacion) => (
                     <div
@@ -241,9 +250,10 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
               {/* Segunda fila de habitaciones */}
               <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between" }}>
                 {habitacionesPorPiso
-                  .filter(
-                    (h) => Number.parseInt(h.numero.substring(1)) >= 1 && Number.parseInt(h.numero.substring(1)) <= 3,
-                  )
+                  .filter((h) => {
+                    const roomNum = Number.parseInt(h.numero.substring(1))
+                    return pisoActual === "1" ? roomNum >= 1 && roomNum <= 3 : roomNum >= 1 && roomNum <= 3
+                  })
                   .sort((a, b) => Number.parseInt(a.numero.substring(1)) - Number.parseInt(b.numero.substring(1)))
                   .map((habitacion) => (
                     <div

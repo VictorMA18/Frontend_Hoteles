@@ -421,7 +421,7 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 disabled={selectedIds.length === 0}
                 style={{ backgroundColor: "#10b981", borderColor: "#10b981" }}
               >
-                ✅ Confirmar Reserva ({selectedIds.length})
+                ✅ Check-in ({selectedIds.length})
               </button>
               <button
                 type="button"
