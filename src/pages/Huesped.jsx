@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 
 function Huesped() {
   const navigate = useNavigate();
-  const [mostrarHistorial, setMostrarHistorial] = useState(true); // Lo dejamos abierto por defecto
+  const [mostrarHistorial, setMostrarHistorial] = useState(true);
 
   const datosHuesped = {
     nombre: "Carlos Ruiz",
@@ -26,7 +26,8 @@ function Huesped() {
     estado: "Confirmado",
   };
 
-  const reservasAnteriores = [
+  
+  const [reservasAnteriores, setReservasAnteriores] = useState([
     {
       id: 1,
       fechaIngreso: "2024-12-20",
@@ -48,7 +49,36 @@ function Huesped() {
       tipo: "Estándar",
       estado: "Cancelado",
     },
-  ];
+    {
+      id: 4,
+      fechaIngreso: "2025-07-20",
+      fechaSalida: "2025-07-22",
+      tipo: "Doble",
+      estado: "Pendiente",
+    },
+    {
+      id: 5,
+      fechaIngreso: "2025-07-25",
+      fechaSalida: "2025-07-28",
+      tipo: "Suite Premium",
+      estado: "Pendiente",
+    },
+    {
+      id: 6,
+      fechaIngreso: "2025-08-05",
+      fechaSalida: "2025-08-08",
+      tipo: "Matrimonial",
+      estado: "Pendiente",
+    },
+    {
+      id: 7,
+      fechaIngreso: "2025-08-15",
+      fechaSalida: "2025-08-18",
+      tipo: "Triple",
+      estado: "Finalizado",
+    },
+  ]);
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -97,7 +127,7 @@ function Huesped() {
             </div>
           </section>
 
-          {/* Historial al lado */}
+          {/* Historial */}
           <section className="md:w-1/2 bg-white rounded-lg shadow-md p-6">
             <button
               className="flex items-center text-blue-600 hover:underline mb-4"
@@ -118,19 +148,18 @@ function Huesped() {
                 <h2 className="text-lg font-semibold text-gray-800 mb-2">
                   Reservas anteriores
                 </h2>
-                <ul className="space-y-3">
+                <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
                   {reservasAnteriores.map((reserva) => (
                     <li
                       key={reserva.id}
-                      className="border border-gray-200 rounded-md p-3 text-sm text-gray-700"
+                      className="border border-gray-200 rounded-md p-3 text-sm text-gray-700 bg-white"
                     >
                       <p>
                         <span className="font-semibold">Fecha:</span>{" "}
                         {reserva.fechaIngreso} → {reserva.fechaSalida}
                       </p>
                       <p>
-                        <span className="font-semibold">Tipo:</span>{" "}
-                        {reserva.tipo}
+                        <span className="font-semibold">Tipo:</span> {reserva.tipo}
                       </p>
                       <p>
                         <span className="font-semibold">Estado:</span>{" "}
@@ -140,15 +169,39 @@ function Huesped() {
                               ? "text-green-600"
                               : reserva.estado === "Cancelado"
                               ? "text-red-600"
-                              : "text-gray-600"
+                              : "text-yellow-600"
                           }
                         >
                           {reserva.estado}
                         </span>
                       </p>
+
+                      {/* Botones si está pendiente */}
+                      {reserva.estado === "Pendiente" && (
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={() => window.location.href = "https://checkout.stripe.com/pay"} // o tu enlace real
+                            className="bg-blue-600 text-white px-3 py-1 text-xs rounded hover:bg-blue-700"
+                          >
+                            Pagar
+                          </button>
+                          <button
+                            onClick={() =>
+                              setReservasAnteriores(prev =>
+                                prev.map(r =>
+                                  r.id === reserva.id ? { ...r, estado: "Cancelado" } : r
+                                )
+                              )
+                            }
+                            className="bg-red-500 text-white px-3 py-1 text-xs rounded hover:bg-red-600"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
-                </ul>
+                </div>
               </>
             )}
           </section>
