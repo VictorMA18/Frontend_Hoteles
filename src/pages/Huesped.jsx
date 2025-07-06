@@ -12,11 +12,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/features/auth/useAuth";
 import { useReservasUsuario } from "@/features/reservas/useReservasUsuario";
 import axiosInstance from "@/libs/axiosInstance";
 
 function Huesped() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [mostrarHistorial, setMostrarHistorial] = useState(true); // Lo dejamos abierto por defecto
 
   // Obtener datos del usuario autenticado desde localStorage
@@ -65,13 +67,24 @@ function Huesped() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
 
       <main className="max-w-6xl mx-auto py-12 px-4">
         <h1 className="text-3xl font-bold text-blue-700 mb-6">
-          Bienvenido, {datosHuesped.nombre}
+          <span>Bienvenido, {datosHuesped.nombre}</span>
+          <Button
+            onClick={handleLogout}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md text-sm font-semibold ml-4"
+          >
+            Cerrar sesión
+          </Button>
         </h1>
 
         <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
@@ -229,15 +242,13 @@ function Huesped() {
                             S/{reserva.subtotal ?? "-"}
                           </p>
                           <p>
+                            <span className="font-semibold">Total descuento:</span>{" "}
+                            S/{typeof reserva.descuento !== 'undefined' && reserva.descuento !== null ? reserva.descuento : '0'}
+                          </p>
+                          <p>
                             <span className="font-semibold">Total a pagar:</span>{" "}
                             S/{reserva.total_pagar ?? "-"}
                           </p>
-                          {reserva.descuento && Number(reserva.descuento) > 0 && (
-                            <p>
-                              <span className="font-semibold">Descuento:</span>{" "}
-                              S/{reserva.descuento}
-                            </p>
-                          )}
                           {reserva.impuestos && Number(reserva.impuestos) > 0 && (
                             <p>
                               <span className="font-semibold">Impuestos:</span>{" "}

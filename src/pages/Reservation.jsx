@@ -76,7 +76,8 @@ function Reservation() {
         return <Users className="w-5 h-5 text-pink-500" />;
       case "doble":
         return <BedDouble className="w-5 h-5 text-blue-500" />;
-      case "simple":
+      case "triple":
+        return <Users className="w-5 h-5 text-green-500" />;
       case "estandar":
         return <BedSingle className="w-5 h-5 text-gray-500" />;
       default:
@@ -274,17 +275,6 @@ function Reservation() {
                 <p className="text-red-600 text-sm">La reserva debe ser al menos de 1 día. El check-out debe ser posterior al check-in.</p>
               )}
               <div>
-                <Label htmlFor="huespedes">Huéspedes</Label>
-                <Input
-                  id="huespedes"
-                  type="number"
-                  min="1"
-                  placeholder="Cantidad"
-                  required
-                  defaultValue={1}
-                />
-              </div>
-              <div>
                 <Label htmlFor="habitacion">Tipo de habitación</Label>
                 <select
                   id="habitacion"
@@ -292,8 +282,8 @@ function Reservation() {
                   required
                 >
                   <option value="">Selecciona tipo</option>
-                  <option value="simple">simple</option>
                   <option value="doble">Doble</option>
+                  <option value="triple">Triple</option>
                   <option value="matrimonial">Matrimonial</option>
                   <option value="suite">Suite</option>
                 </select>
