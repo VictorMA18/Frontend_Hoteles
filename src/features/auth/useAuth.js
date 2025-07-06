@@ -3,16 +3,19 @@ import axios from 'axios'
 
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return Boolean(localStorage.getItem('token'))
+    return Boolean(localStorage.getItem('access'))
   })
 
   const login = async (dni, password) => {
     try {
-      const response = await axios.post('http://localhost:8000/huespedes/login/', {
+      const response = await axios.post('http://localhost:8000/api/usuarios/login/', {
         dni,
         password,
       })
-      localStorage.setItem('token', response.data.token)
+      // Guardar tokens y datos de usuario según la nueva respuesta
+      localStorage.setItem('access', response.data.access)
+      localStorage.setItem('refresh', response.data.refresh)
+      localStorage.setItem('usuario', JSON.stringify(response.data.user))
       setIsAuthenticated(true)
       return { success: true }
     } catch (error) {
@@ -23,7 +26,9 @@ export function useAuth() {
 
   const logout = () => {
     setIsAuthenticated(false)
-    localStorage.removeItem('token')
+    localStorage.removeItem('access')
+    localStorage.removeItem('refresh')
+    localStorage.removeItem('usuario')
   }
 
   return { isAuthenticated, login, logout }

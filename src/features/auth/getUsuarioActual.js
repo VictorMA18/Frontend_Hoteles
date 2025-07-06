@@ -1,14 +1,10 @@
-import axios from 'axios'
+import axiosInstance from '@/libs/axiosInstance'
 
 export async function getUsuarioActual() {
   const token = localStorage.getItem('token')
   if (!token) return null
   try {
-    const response = await axios.get('http://localhost:8000/huespedes/perfil/', {
-      headers: {
-        Authorization: `Token ${token}`,
-      },
-    })
+    const response = await axiosInstance.get('http://localhost:8000/huespedes/perfil/')
     return response.data
   } catch (error) {
     return null

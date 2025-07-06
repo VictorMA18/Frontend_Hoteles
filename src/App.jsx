@@ -4,8 +4,9 @@ import Hospedaje from './pages/Hospedaje'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import Register from './pages/Register'
-import HomeUsuario from './pages/HomeUsuario'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
+import Huesped from './pages/Huesped'
+import ReservationPage from './pages/Reservation'
 
 function App() {
   return (
@@ -15,7 +16,12 @@ function App() {
       <Route path="/hospedaje" element={<Hospedaje />} />
       <Route path="/homeusuario" element={
         <ProtectedRoute>
-          <HomeUsuario />
+          <Huesped />
+        </ProtectedRoute>
+      } />
+      <Route path="/reservation" element={
+        <ProtectedRoute>
+          <ReservationPage />
         </ProtectedRoute>
       } />
       <Route path="/login" element={<Login />} />
