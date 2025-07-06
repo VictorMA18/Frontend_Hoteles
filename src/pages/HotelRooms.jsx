@@ -4,7 +4,7 @@ import { BedDouble, BedSingle, Bed, Gem, HeartHandshake, Sparkles, Star } from "
 
 const HotelRoomsManager = () => {
   // Datos de ejemplo para las habitaciones
-  const [habitacionesData, setHabitacionesData] = useState({
+  const [habitacionesData] = useState({
     '101': { numero: '101', tipo: 'Doble', estado: 'disponible', precio: 110, huespedes: 0, maxHuespedes: 2 },
     '102': { numero: '102', tipo: 'Triple', estado: 'ocupada', precio: 140, huespedes: 3, maxHuespedes: 3 },
     '103': { numero: '103', tipo: 'Suite', estado: 'disponible', precio: 180, huespedes: 0, maxHuespedes: 2 },
@@ -36,7 +36,6 @@ const HotelRoomsManager = () => {
   });
   
   const [pisoActual, setPisoActual] = useState('1');
-  const [notification, setNotification] = useState(null);
 
   // Filtrar habitaciones por piso
   const habitacionesPorPiso = Object.values(habitacionesData).filter((habitacion) =>
@@ -111,32 +110,6 @@ const HotelRoomsManager = () => {
     }
   };
 
-  const showNotification = (message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
-  };
-
-  const actualizarEstado = (numeroHabitacion, nuevoEstado) => {
-    setHabitacionesData(prev => ({
-      ...prev,
-      [numeroHabitacion]: {
-        ...prev[numeroHabitacion],
-        estado: nuevoEstado,
-        huespedes: nuevoEstado === 'disponible' ? 0 : prev[numeroHabitacion].huespedes
-      }
-    }));
-  };
-
-  const cambiarEstado = (habitacion) => {
-    if (habitacion.estado === 'limpieza') {
-      actualizarEstado(habitacion.numero, 'disponible');
-      showNotification(`Habitación ${habitacion.numero} marcada como disponible`, 'success');
-    } else if (habitacion.estado === 'mantenimiento') {
-      actualizarEstado(habitacion.numero, 'disponible');
-      showNotification(`Habitación ${habitacion.numero} fuera de mantenimiento`, 'success');
-    }
-  };
-
   // Componente para renderizar las habitaciones con logos
   const HabitacionCard = ({ habitacion, extraClass = "" }) => {
     const estadoConfig = estadosConfig[habitacion.estado];
@@ -147,15 +120,13 @@ const HotelRoomsManager = () => {
 
     return (
       <div
-        className={`relative border-3 p-6 transition-all duration-200 min-h-[180px] rounded-xl ${
-          esClickeable ? 'cursor-pointer hover:shadow-xl hover:scale-105' : 'cursor-default'
-        } ${extraClass}`}
+        className={`relative border-3 p-6 min-h-[180px] rounded-xl" ${extraClass}`}
         style={{
           backgroundColor: estadoConfig.bgColor,
           borderColor: estadoConfig.borderColor,
           color: estadoConfig.textColor
         }}
-        onClick={() => cambiarEstado(habitacion)}
+        onClick={null}
         title={esClickeable ? `Clic para cambiar estado` : estadoConfig.label}
       >
         {/* Logo principal del tipo de habitación - MÁS GRANDE */}
@@ -232,19 +203,6 @@ const HotelRoomsManager = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-
-      {/* Notification */}
-      {notification && (
-        <div className={`max-w-7xl mx-auto mb-6 p-4 rounded-lg border-l-4 ${
-          notification.type === 'success' ? 'bg-green-50 border-green-400 text-green-700' : 
-          'bg-red-50 border-red-400 text-red-700'
-        }`}>
-          <div className="flex items-center">
-            <CheckCircle2 className="w-5 h-5 mr-2" />
-            {notification.message}
-          </div>
-        </div>
-      )}
 
       {/* Selector de Piso y Mapa */}
       <div className="max-w-7xl mx-auto scale-[0.80] origin-top mx-auto">
@@ -366,7 +324,6 @@ const HotelRoomsManager = () => {
             <div>
               <h3 className="font-medium text-blue-900 mb-1">Instrucciones de Uso</h3>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>• 🧹 Haz clic en las habitaciones en <strong>limpieza</strong> o <strong>mantenimiento</strong> para marcarlas como disponibles</li>
                 <li>• 👥 Las habitaciones ocupadas muestran el número de huéspedes actuales</li>
                 <li>• 🏢 Usa los botones de piso para navegar entre los diferentes niveles</li>
                 <li>• 💰 Los precios se muestran por noche en cada habitación</li>
