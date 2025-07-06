@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import HotelRooms from './HotelRooms';
 import {
   BedSingle,
   BedDouble,
@@ -17,6 +18,7 @@ import {
 
 function Reservation() {
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [modalCroquisAbierto, setModalCroquisAbierto] = useState(false);
 
   const habitacionesPorPiso = {
     "Piso 1": [
@@ -130,9 +132,13 @@ function Reservation() {
             >
               Hacer Reserva
             </button>
-            <button className="bg-white text-black px-6 py-3 rounded-lg text-lg border border-gray-300 shadow-md hover:bg-gray-100">
+            <button
+              onClick={() => setModalCroquisAbierto(true)}
+              className="bg-white text-black px-6 py-3 rounded-lg text-lg border border-gray-300 shadow-md hover:bg-gray-100"
+            >
               Ver Croquis
             </button>
+
           </div>
         </div>
       </section>
@@ -209,7 +215,22 @@ function Reservation() {
           </div>
         </div>
       )}
-
+      {modalCroquisAbierto && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 backdrop-blur-sm flex justify-center items-center overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-y-auto relative p-6 scale-[0.90]">
+            <button
+              onClick={() => setModalCroquisAbierto(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-black"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            {/* Reutilizamos el componente de habitaciones */}
+            <div>
+              <HotelRooms />
+            </div>
+          </div>
+        </div>
+      )}
       {/* Lista por pisos con estilo tarjeta */}
       <section className="px-6 py-16 bg-gray-50">
         <h2 className="text-3xl font-bold text-gray-900 mb-12 text-center">
