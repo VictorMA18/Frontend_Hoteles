@@ -39,6 +39,22 @@ const App = () => {
     407: { numero: "407", tipo: "Matr.", estado: "disponible" },
   })
 
+  // Configuración de precios por tipo de habitación (desde configuración)
+  const roomPrices = {
+    matrimonial: 90.0,
+    doble: 120.0,
+    triple: 150.0,
+    suite: 110.0,
+  }
+
+  // Mapeo de tipos de habitación
+  const roomTypeMapping = {
+    "Matr.": "matrimonial",
+    Doble: "doble",
+    Triple: "triple",
+    Suite: "suite",
+  }
+
   const handleNavigate = (page) => {
     setCurrentPage(page)
   }
@@ -58,7 +74,6 @@ const App = () => {
   const registrarHuesped = (datosHuesped) => {
     // Agregar el huésped a la lista
     setHuespedes((prev) => [...prev, datosHuesped])
-
     // Actualizar el estado de la habitación a ocupada
     actualizarEstadoHabitacion(datosHuesped.habitacion, "ocupada")
   }
@@ -66,7 +81,6 @@ const App = () => {
   // Función para hacer checkout de huéspedes
   const checkoutHuespedes = (idsHuespedes) => {
     const ahora = new Date()
-
     // Obtener las habitaciones que se van a liberar
     const habitacionesALiberar = huespedes
       .filter((huesped) => idsHuespedes.includes(huesped.id))
@@ -92,6 +106,56 @@ const App = () => {
     })
   }
 
+  // Función para confirmar reservas y pasarlas a hospedaje
+  const confirmarReservas = (reservasConfirmadas) => {
+    const ahora = new Date()
+
+    reservasConfirmadas.forEach((reserva) => {
+      // Para reservas de múltiples días, crear entrada por el primer día
+      const montoPorDia = reserva.montoTotal / reserva.dias
+
+      const nuevoHuesped = {
+        id: `reserva-${reserva.id}-dia-1`,
+        nombre: reserva.nombre,
+        dni: reserva.dni,
+        habitacion: reserva.habitacion,
+        medioPago: reserva.pago ? "pagado" : "pendiente",
+        monto: montoPorDia,
+        estancia: "activa",
+        pagado: reserva.pago,
+        descuento: reserva.descuento,
+        huespedes: reserva.huespedes,
+        fechaEntrada: reserva.entrada,
+        horaEntrada: ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+        fechaSalida: "",
+        horaSalida: "",
+        usuario: "Admin",
+        reservaOriginal: reserva.id,
+        diaActual: 1,
+        diasTotal: reserva.dias,
+        fechaFinReserva: reserva.salida,
+      }
+
+      // Agregar huésped a hospedaje
+      setHuespedes((prev) => [...prev, nuevoHuesped])
+
+      // Actualizar estado de habitación
+      actualizarEstadoHabitacion(reserva.habitacion, "ocupada")
+
+      // Si la reserva es de múltiples días, programar las renovaciones automáticas
+      if (reserva.dias > 1) {
+        programarRenovacionesAutomaticas(reserva, montoPorDia)
+      }
+    })
+  }
+
+  // Función para programar renovaciones automáticas (simulada)
+  const programarRenovacionesAutomaticas = (reserva, montoPorDia) => {
+    // En una implementación real, esto se haría con un sistema de cron jobs o similar
+    // Por ahora, solo registramos que se debe hacer
+    console.log(`Programando ${reserva.dias - 1} renovaciones automáticas para reserva ${reserva.id}`)
+  }
+
   const renderCurrentPage = () => {
     switch (currentPage) {
       case "hospedaje":
@@ -105,7 +169,14 @@ const App = () => {
           />
         )
       case "reservas":
-        return <Reservas />
+        return (
+          <Reservas
+            habitacionesData={habitacionesData}
+            roomPrices={roomPrices}
+            roomTypeMapping={roomTypeMapping}
+            onConfirmarReservas={confirmarReservas}
+          />
+        )
       case "habitaciones":
         return <Habitaciones habitacionesData={habitacionesData} onActualizarEstado={actualizarEstadoHabitacion} />
       case "configuracion":

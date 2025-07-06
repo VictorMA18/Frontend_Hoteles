@@ -11,7 +11,7 @@ const Configuracion = () => {
   })
 
   const [roomAssignments, setRoomAssignments] = useState({
-    matrimonial: "101,102,203,207,303,307,401,403,406",
+    matrimonial: "203,207,303,307,401,403,406",
     doble: "204,205,305,304,404,405",
     triple: "201,301",
     suite: "202,302,402",
@@ -55,6 +55,25 @@ const Configuracion = () => {
       ...prev,
       [roomType]: value,
     }))
+  }
+
+  const handleRemoveRoom = (roomType, roomToRemove) => {
+    const currentRooms = tempAssignments[roomType]
+      .split(",")
+      .map((r) => r.trim())
+      .filter((r) => r && r !== roomToRemove)
+      .join(",")
+
+    handleAssignmentChange(roomType, currentRooms)
+  }
+
+  const handleAddRoom = (roomType, newRoom) => {
+    if (!newRoom.trim()) return
+
+    const currentRooms = tempAssignments[roomType]
+    const newRooms = currentRooms ? `${currentRooms},${newRoom.trim()}` : newRoom.trim()
+
+    handleAssignmentChange(roomType, newRooms)
   }
 
   const handleSaveChanges = () => {
@@ -175,7 +194,7 @@ const Configuracion = () => {
         <div className="card-header">
           <h2>Asignación de Habitaciones</h2>
           <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: "0.5rem 0 0 0" }}>
-            Separa los números de habitación con comas (ej: 101,102,103)
+            Haz clic en ✕ para eliminar habitaciones
           </p>
         </div>
         <div className="card-content">
@@ -217,55 +236,47 @@ const Configuracion = () => {
                 </div>
                 <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <label className="form-label">Habitaciones asignadas:</label>
-                  <textarea
-                    value={tempAssignments[key]}
-                    onChange={(e) => handleAssignmentChange(key, e.target.value)}
-                    placeholder="Ej: 101,102,103"
-                    style={{
-                      padding: "0.5rem",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "6px",
-                      fontSize: "0.875rem",
-                      resize: "vertical",
-                      minHeight: "60px",
-                      fontFamily: "monospace",
-                      width: "100%",
-                    }}
-                    rows="2"
-                  />
-                  <div>
-                    <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#6b7280" }}>Vista previa:</span>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "0.375rem",
-                        marginTop: "0.375rem",
-                        minHeight: "24px",
-                      }}
-                    >
-                      {tempAssignments[key]
-                        .split(",")
-                        .map((room) => room.trim())
-                        .filter((room) => room)
-                        .map((room, index) => (
-                          <span
-                            key={index}
-                            style={{
-                              padding: "0.125rem 0.5rem",
-                              borderRadius: "12px",
-                              fontSize: "0.75rem",
-                              fontWeight: "500",
-                              backgroundColor: `${color}20`,
-                              color: color,
-                              border: `1px solid ${color}`,
-                            }}
+
+                  {/* Chips Container */}
+                  <div className="room-chips-container">
+                    {tempAssignments[key]
+                      .split(",")
+                      .map((room) => room.trim())
+                      .filter((room) => room)
+                      .map((room, index) => (
+                        <span
+                          key={index}
+                          className="room-chip"
+                          style={{
+                            backgroundColor: `${color}20`,
+                            color: color,
+                            border: `1px solid ${color}`,
+                          }}
+                        >
+                          {room}
+                          <button
+                            className="room-chip-remove"
+                            onClick={() => handleRemoveRoom(key, room)}
+                            style={{ color: color }}
                           >
-                            {room}
-                          </span>
-                        ))}
-                    </div>
+                            ✕
+                          </button>
+                        </span>
+                      ))}
                   </div>
+
+                  {/* Add Room Input */}
+                  <input
+                    className="form-input"
+                    type="text"
+                    placeholder="Agregar habitación (Enter para añadir)"
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        handleAddRoom(key, e.target.value)
+                        e.target.value = ""
+                      }
+                    }}
+                  />
                 </div>
               </div>
             ))}
