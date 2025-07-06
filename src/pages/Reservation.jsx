@@ -28,6 +28,8 @@ function useCrearReserva() {
     setError(null);
     setSuccess(false);
     try {
+      // Mostrar el JSON que se enviaría al endpoint
+      console.log("[DEBUG] Reserva a enviar:", JSON.stringify(body, null, 2));
       const response = await axiosInstance.post(
         "http://localhost:8000/api/reservas/crear/",
         body
@@ -59,6 +61,9 @@ function Reservation() {
   });
   const [totalReserva, setTotalReserva] = useState(null);
   const { crearReserva, loading: loadingCrear, error: errorCrear, success: successCrear } = useCrearReserva();
+  const [habitacionesDisponibles, setHabitacionesDisponibles] = useState([]);
+  const [buscando, setBuscando] = useState(false);
+  const [errorDisponibilidad, setErrorDisponibilidad] = useState(null);
 
   // Obtener usuario autenticado de localStorage
   const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
@@ -153,6 +158,35 @@ function Reservation() {
     : minCheckin;
   const errorFecha = formReserva.checkin && formReserva.checkout && (new Date(formReserva.checkout) <= new Date(formReserva.checkin));
 
+  // Lógica para buscar disponibilidad
+  const buscarDisponibilidad = async (e) => {
+    e.preventDefault();
+    setBuscando(true);
+    setErrorDisponibilidad(null);
+    setHabitacionesDisponibles([]);
+    const payload = {
+      fecha_checkin: formReserva.checkin,
+      fecha_checkout: formReserva.checkout,
+      tipo_habitacion: formReserva.tipo || document.getElementById('habitacion')?.value,
+      numero_huespedes: formReserva.huespedes || document.getElementById('huespedes')?.value,
+    };
+    console.log('[DEBUG] Payload buscar disponibilidad:', JSON.stringify(payload, null, 2));
+    try {
+      const response = await axiosInstance.post(
+        "http://localhost:8000/api/habitaciones/buscar-disponibilidad/",
+        payload
+      );
+      setHabitacionesDisponibles(response.data);
+      if (response.data.length === 0) {
+        setErrorDisponibilidad('No hay habitaciones disponibles para los criterios seleccionados.');
+      }
+    } catch (err) {
+      setErrorDisponibilidad('Error al buscar disponibilidad.');
+    } finally {
+      setBuscando(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <Header />
@@ -197,7 +231,7 @@ function Reservation() {
             <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">
               Reserva rápida
             </h2>
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={buscarDisponibilidad}>
               <div>
                 <Label htmlFor="nombre">Nombre</Label>
                 <Input id="nombre" placeholder="Tu nombre completo" required value={usuario.nombres || ''} disabled />
@@ -267,10 +301,32 @@ function Reservation() {
               <button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 mt-2 text-lg text-white py-2 rounded-md font-semibold"
+                disabled={buscando}
               >
-                Buscar Disponibilidad
+                {buscando ? 'Buscando...' : 'Buscar Disponibilidad'}
               </button>
             </form>
+            {errorDisponibilidad && (
+              <p className="text-red-600 text-sm mt-2">{errorDisponibilidad}</p>
+            )}
+            {habitacionesDisponibles.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-2">Habitaciones disponibles:</h3>
+                <ul className="space-y-2 max-h-40 overflow-y-auto">
+                  {habitacionesDisponibles.map((hab) => (
+                    <li key={hab.codigo || hab.id} className="border p-2 rounded flex justify-between items-center">
+                      <span>Hab. {hab.numero_habitacion} - {hab.tipo_nombre} - S/{hab.precio_actual || hab.precio_base}</span>
+                      <Button size="sm" onClick={() => {
+                        setHabitacionSeleccionada(hab);
+                        setModalAbierto(false);
+                      }}>
+                        Reservar
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -306,9 +362,9 @@ function Reservation() {
                   precio_noche: String(habitacionSeleccionada.precio_actual || habitacionSeleccionada.tipo_info?.precio_base || ''),
                   observaciones: null
                 };
+                console.log('Reserva a enviar:', body);
                 const data = await crearReserva(body);
                 if (data) {
-                  // Puedes mostrar feedback visual aquí
                   alert('Reserva creada con éxito');
                   handleCerrarModalReserva();
                 }

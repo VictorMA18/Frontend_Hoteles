@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useReservasUsuario } from "@/features/reservas/useReservasUsuario";
+import axiosInstance from "@/libs/axiosInstance";
 
 function Huesped() {
   const navigate = useNavigate();
@@ -48,6 +49,20 @@ function Huesped() {
     3: "Cancelado",
     4: "Finalizado",
     // Agrega más según tu modelo
+  };
+
+  // Lógica para cancelar reserva
+  const handleCancelarReserva = async (reservaId) => {
+    if (!window.confirm("¿Seguro que deseas cancelar esta reserva?")) return;
+    try {
+      await axiosInstance.post(
+        `http://localhost:8000/api/reservas/${reservaId}/cancelar/`
+      );
+      alert("Reserva cancelada correctamente.");
+      window.location.reload(); // O puedes refrescar solo las reservas si prefieres
+    } catch (err) {
+      alert("Error al cancelar la reserva. Intenta nuevamente.");
+    }
   };
 
   return (
@@ -167,7 +182,7 @@ function Huesped() {
                       return (
                         <li
                           key={reserva.id}
-                          className="border border-gray-200 rounded-md p-3 text-sm text-gray-700"
+                          className="border border-gray-200 rounded-md p-3 text-sm text-gray-700 relative"
                         >
                           <p>
                             <span className="font-semibold">Habitación:</span>{" "}
@@ -207,15 +222,15 @@ function Huesped() {
                           </p>
                           <p>
                             <span className="font-semibold">Total noches:</span>{" "}
-                            {reserva.total_noches ?? '-'}
+                            {reserva.total_noches ?? "-"}
                           </p>
                           <p>
                             <span className="font-semibold">Subtotal:</span>{" "}
-                            S/{reserva.subtotal ?? '-'}
+                            S/{reserva.subtotal ?? "-"}
                           </p>
                           <p>
                             <span className="font-semibold">Total a pagar:</span>{" "}
-                            S/{reserva.total_pagar ?? '-'}
+                            S/{reserva.total_pagar ?? "-"}
                           </p>
                           {reserva.descuento && Number(reserva.descuento) > 0 && (
                             <p>
@@ -235,6 +250,19 @@ function Huesped() {
                               {reserva.observaciones}
                             </p>
                           )}
+                          {reserva.estado_reserva_nombre?.toLowerCase() ===
+                            "pendiente" ||
+                          reserva.id_estado_reserva === 1 ? (
+                            <div className="absolute bottom-3 right-3">
+                              <button
+                                className="bg-red-500 hover:bg-red-600 text-white px-4 py-1 rounded-md text-xs font-semibold shadow"
+                                onClick={() => handleCancelarReserva(reserva.id)}
+                                type="button"
+                              >
+                                Cancelar reserva
+                              </button>
+                            </div>
+                          ) : null}
                         </li>
                       );
                     })}
