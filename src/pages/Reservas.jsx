@@ -4,7 +4,8 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
   const [reservas, setReservas] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
   const [form, setForm] = useState({
-    nombre: "",
+    nombres: "",
+    apellidos: "",
     dni: "",
     habitacion: "",
     huespedes: "1",
@@ -12,10 +13,31 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     pago: false,
     monto: "",
     montoTotal: "",
-    descuento: "10",
+    descuento: "",
     entrada: "",
     salida: "",
+    dni_admin: "",
   })
+
+  // Mapeo local actualizado para asegurar compatibilidad
+  const localRoomTypeMapping = {
+    "Matrimonial": "matrimonial", // Agregado para el tipo completo del backend
+    "Doble": "doble",
+    "Triple": "triple",
+    "Suite": "suite",
+    // Mantener compatibilidad con el mapeo que viene como prop
+    ...roomTypeMapping
+  }
+
+  // Precios locales como fallback
+  const localRoomPrices = {
+    matrimonial: 90.0,
+    doble: 120.0,
+    triple: 150.0,
+    suite: 110.0,
+    // Mantener precios que vienen como prop
+    ...roomPrices
+  }
 
   // Filtrar habitaciones disponibles para el selector
   const habitacionesDisponibles = habitacionesData
@@ -58,9 +80,10 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       if (field === "habitacion" && value && habitacionesData) {
         const habitacion = habitacionesData[value]
         if (habitacion) {
-          const roomType = roomTypeMapping[habitacion.tipo]
-          if (roomType && roomPrices && roomPrices[roomType]) {
-            newForm.monto = roomPrices[roomType].toString()
+          const roomType = localRoomTypeMapping[habitacion.tipo]
+          
+          if (roomType && localRoomPrices && localRoomPrices[roomType]) {
+            newForm.monto = localRoomPrices[roomType].toString()
           }
         }
       }
@@ -81,10 +104,11 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     }, 3000)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (
-      !form.nombre.trim() ||
+      !form.nombres.trim() ||
+      !form.apellidos.trim() ||
       !form.dni.trim() ||
       !form.habitacion.trim() ||
       !form.huespedes ||
@@ -96,22 +120,18 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       showToast("Completa todos los campos obligatorios", "error")
       return
     }
-
     if (form.dni.length !== 8 || !/^\d+$/.test(form.dni)) {
       showToast("El DNI debe tener 8 dígitos", "error")
       return
     }
-
     if (Number.parseFloat(form.monto) <= 0) {
       showToast("El monto debe ser mayor a 0", "error")
       return
     }
-
     if (Number.parseInt(form.huespedes) < 1) {
       showToast("La cantidad de huéspedes debe ser mayor o igual a 1", "error")
       return
     }
-
     // Validar fechas
     const fechaEntrada = new Date(form.entrada)
     const fechaSalida = new Date(form.salida)
@@ -119,10 +139,59 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       showToast("La fecha de salida debe ser posterior a la fecha de entrada", "error")
       return
     }
-
+    // --- ENVÍO AL ENDPOINT ---
+    // Obtener hora actual para las fechas
+    const now = new Date()
+    const horaActual = now.toTimeString().slice(0, 8) // HH:MM:SS
+    const fecha_checkin_programado = `${form.entrada}T${horaActual}`
+    const fecha_checkout_programado = `${form.salida}T${horaActual}`
+    // Obtener dni_admin desde localStorage (usuario.dni)
+    let dni_admin = ""
+    try {
+      const usuarioAdmin = JSON.parse(localStorage.getItem("usuario") || "{}")
+      dni_admin = usuarioAdmin?.dni || ""
+    } catch {
+      dni_admin = ""
+    }
+    // Construir el JSON exacto
+    const payload = {
+      dni: form.dni.trim(),
+      nombres: form.nombres.trim(),
+      apellidos: form.apellidos.trim(),
+      habitacion_id: form.habitacion.startsWith("HAB") ? form.habitacion : `HAB${form.habitacion}`,
+      numero_huespedes: Number.parseInt(form.huespedes),
+      fecha_checkin_programado,
+      fecha_checkout_programado,
+      dni_admin,
+    }
+    // Mostrar en consola antes de enviar
+    console.log("[RESERVA PENDIENTE] Payload a enviar:", payload)
+    // Obtener token de autenticación si existe
+    let token = ""
+    try {
+      token = localStorage.getItem("access") || ""
+    } catch {}
+    const headers = { "Content-Type": "application/json" }
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    try {
+      const res = await fetch("http://localhost:8000/api/reservas/hospedaje-presencial-pendiente/", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        showToast("Reserva pendiente registrada correctamente")
+      } else {
+        const error = await res.json().catch(() => ({}))
+        showToast(error.detail || "Error al registrar reserva", "error")
+      }
+    } catch (err) {
+      showToast("Error de red al registrar reserva", "error")
+    }
+    // --- FIN ENVÍO AL ENDPOINT ---
     const nuevaReserva = {
       id: Date.now().toString(),
-      nombre: form.nombre.trim(),
+      nombre: `${form.nombres.trim()} ${form.apellidos.trim()}`,
       dni: form.dni.trim(),
       habitacion: form.habitacion.trim(),
       huespedes: Number.parseInt(form.huespedes),
@@ -140,7 +209,8 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
 
     setReservas((prev) => [...prev, nuevaReserva])
     setForm({
-      nombre: "",
+      nombres: "",
+      apellidos: "",
       dni: "",
       habitacion: "",
       huespedes: "1",
@@ -148,9 +218,10 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       pago: false,
       monto: "",
       montoTotal: "",
-      descuento: "10",
+      descuento: "",
       entrada: "",
       salida: "",
+      dni_admin: "",
     })
     showToast(`Reserva de ${nuevaReserva.nombre} agregada`)
   }
@@ -227,13 +298,24 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
             style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem" }}
           >
             <div>
-              <label className="form-label">Nombre Completo *</label>
+              <label className="form-label">Nombres *</label>
               <input
                 className="form-input"
                 type="text"
-                value={form.nombre}
-                onChange={(e) => handleInputChange("nombre", e.target.value)}
-                placeholder="Ej. Juan Pérez"
+                value={form.nombres}
+                onChange={(e) => handleInputChange("nombres", e.target.value)}
+                placeholder="Ej. Juan Carlos"
+                required
+              />
+            </div>
+            <div>
+              <label className="form-label">Apellidos *</label>
+              <input
+                className="form-input"
+                type="text"
+                value={form.apellidos}
+                onChange={(e) => handleInputChange("apellidos", e.target.value)}
+                placeholder="Ej. Pérez Gómez"
                 required
               />
             </div>
@@ -308,11 +390,13 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 step="0.01"
                 value={form.monto}
                 onChange={(e) => handleInputChange("monto", e.target.value)}
-                placeholder="Se completa automáticamente"
-                readOnly
-                style={{ backgroundColor: "#f9fafb", cursor: "not-allowed" }}
+                placeholder="Se completa automáticamente al seleccionar habitación"
+                style={{ backgroundColor: "#f8fafc" }}
                 required
               />
+              <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
+                💡 Se completa automáticamente al seleccionar una habitación
+              </div>
             </div>
 
             <div>
