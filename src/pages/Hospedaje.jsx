@@ -50,6 +50,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
       try {
         const res = await axiosInstance.get("http://localhost:8000/api/reservas/confirmadas-ocupadas-limpieza/")
         setReservasBackend(res.data)
+        console.log("Reservas del backend cargadas:", res.data)
       } catch (err) {
         // Puedes mostrar un toast si quieres
         // showToast("No se pudieron cargar las reservas del backend", "error")

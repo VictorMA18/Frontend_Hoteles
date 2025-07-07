@@ -25,6 +25,39 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas }) =>
     ? Object.values(habitacionesData).filter((habitacion) => habitacion.estado === "disponible")
     : []
 
+const handleConfirmarPago = () => {
+    if (selectedIds.length === 0) {
+      showToast("Selecciona al menos una reserva para confirmar el pago", "error")
+      return
+    }
+
+    const reservasNoPagadas = reservas.filter((r) => selectedIds.includes(r.id) && !r.pago)
+
+    if (reservasNoPagadas.length === 0) {
+      showToast("Las reservas seleccionadas ya están pagadas", "error")
+      return
+    }
+
+    // Actualizar estado de pago y cambiar habitaciones a reservado
+    if (setReservas) {
+      setReservas((prev) =>
+        prev.map((reserva) => {
+          if (selectedIds.includes(reserva.id) && !reserva.pago) {
+            // Cambiar habitación a estado "reservado"
+            if (onActualizarEstadoHabitacion) {
+              onActualizarEstadoHabitacion(reserva.habitacion, "reservado")
+            }
+            return { ...reserva, pago: true }
+          }
+          return reserva
+        }),
+      )
+    }
+
+    showToast(`${reservasNoPagadas.length} pago(s) confirmado(s)`)
+    setSelectedIds([])
+  }
+
   const calcularDias = (entrada, salida) => {
     if (!entrada || !salida) return 0
     const fechaEntrada = new Date(entrada)
@@ -451,62 +484,6 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas }) =>
               )}
             </div>
 
-            <div>
-              <label className="form-label">Estado del Pago</label>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  backgroundColor: "#ffffff",
-                  height: "42px",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  id="pago-checkbox"
-                  checked={form.pago}
-                  onChange={(e) => handleInputChange("pago", e.target.checked)}
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    accentColor: "#3b82f6",
-                    cursor: "pointer",
-                  }}
-                />
-                <label
-                  htmlFor="pago-checkbox"
-                  style={{
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                    color: "#374151",
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                >
-                  Pago Realizado
-                </label>
-                {form.pago && (
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      padding: "0.25rem 0.5rem",
-                      borderRadius: "12px",
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      backgroundColor: "#dcfce7",
-                      color: "#166534",
-                    }}
-                  >
-                    ✓ Pagado
-                  </span>
-                )}
-              </div>
-            </div>
-
             <div style={{ gridColumn: "1 / -1", marginTop: "0.5rem", display: "flex", gap: "0.75rem" }}>
               <button type="submit" className="btn btn-primary">
                 ➕ Registrar Reserva
@@ -516,9 +493,22 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas }) =>
                 className="btn btn-success"
                 onClick={handleConfirmarReservas}
                 disabled={selectedIds.length === 0}
-                style={{ backgroundColor: "#10b981", borderColor: "#10b981" }}
+                style={{ backgroundColor: "#10b981", borderColor: "#10b981", color: "white"}}
               >
                 ✅ Check-in ({selectedIds.length})
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleConfirmarPago}
+                disabled={selectedIds.length === 0}
+                style={{
+                  backgroundColor: "#8b5cf6",
+                  borderColor: "#8b5cf6",
+                  color: "white",
+                }}
+              >
+                💳 Confirmar Pago ({selectedIds.length})
               </button>
               <button
                 type="button"
@@ -659,7 +649,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas }) =>
                       style={{ cursor: r.estado === "Cancelada" ? "not-allowed" : "pointer" }}
                     />
                   </td>
-                  <td style={{ padding: "0.75rem", fontWeight: "500" }}>{r.nombre}</td>
+                  <td style={{ padding: "0.75rem", fontWeight: "500" }}>{r.nombres}</td>
                   <td style={{ padding: "0.75rem" }}>{r.dni}</td>
                   <td style={{ padding: "0.75rem", textAlign: "center" }}>{r.habitacion}</td>
                   <td style={{ padding: "0.75rem", textAlign: "center" }}>

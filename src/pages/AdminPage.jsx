@@ -36,17 +36,20 @@ const App = () => {
     fetchHabitaciones()
   }, [])
 
-  // Configuración de precios por tipo de habitación (desde configuración)
-  const roomPrices = {
-    matrimonial: 90.0,
-    doble: 120.0,
-    triple: 150.0,
-    suite: 110.0,
-  }
+  // Obtener precios dinámicamente desde habitacionesData
+  const roomPrices = Object.values(habitacionesData).reduce((acc, hab) => {
+    // Normalizar el tipo para el mapeo
+    let tipo = hab.tipo_nombre || hab.tipo;
+    if (tipo) tipo = tipo.toLowerCase();
+    if (tipo && hab.precio_actual) {
+      acc[tipo] = Number(hab.precio_actual);
+    }
+    return acc;
+  }, {});
 
   // Mapeo de tipos de habitación
   const roomTypeMapping = {
-    "Matr.": "matrimonial",
+    Matr: "matrimonial",
     Doble: "doble",
     Triple: "triple",
     Suite: "suite",
