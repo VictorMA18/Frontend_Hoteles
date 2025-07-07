@@ -1,6 +1,16 @@
+"use client"
+
 import { useState, useEffect } from "react"
 
-const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesped, onCheckoutHuespedes }) => {
+const Hospedaje = ({
+  huespedes,
+  setHuespedes,
+  habitacionesData,
+  onRegistrarHuesped,
+  onCheckoutHuespedes,
+  roomPrices,
+  roomTypeMapping,
+}) => {
   const [selectedIds, setSelectedIds] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [form, setForm] = useState({
@@ -15,21 +25,30 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     montoTotal: "",
   })
 
-  // Configuración de precios por tipo de habitación (desde configuración)
-  const roomPrices = {
+  // Configuración de precios por tipo de habitación (desde configuración) - FALLBACK
+  const fallbackRoomPrices = {
     matrimonial: 90.0,
     doble: 120.0,
     triple: 150.0,
     suite: 110.0,
   }
 
-  // Mapeo de tipos de habitación
-  const roomTypeMapping = {
+  // Mapeo de tipos de habitación - MEJORADO PARA INCLUIR MÁS VARIACIONES
+  const fallbackRoomTypeMapping = {
     "Matr.": "matrimonial",
+    Matrimonial: "matrimonial",
+    matrimonial: "matrimonial",
     Doble: "doble",
+    doble: "doble",
     Triple: "triple",
+    triple: "triple",
     Suite: "suite",
+    suite: "suite",
   }
+
+  // Usar props si están disponibles, sino usar fallback
+  const currentRoomPrices = roomPrices || fallbackRoomPrices
+  const currentRoomTypeMapping = roomTypeMapping || fallbackRoomTypeMapping
 
   // Filtrar habitaciones disponibles para el selector
   const habitacionesDisponibles = Object.values(habitacionesData).filter(
@@ -59,13 +78,39 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     setForm((prev) => {
       const newForm = { ...prev, [field]: value }
 
-      // Auto-completar monto cuando se selecciona habitación
+      // Auto-completar monto cuando se selecciona habitación - MEJORADO
       if (field === "habitacion" && value) {
         const habitacion = habitacionesData[value]
         if (habitacion) {
-          const roomType = roomTypeMapping[habitacion.tipo]
-          if (roomType && roomPrices[roomType]) {
-            newForm.monto = roomPrices[roomType].toString()
+          // Intentar múltiples variaciones del tipo de habitación
+          let roomType = null
+          const tipoHabitacion = habitacion.tipo
+
+          // Buscar coincidencia exacta primero
+          if (currentRoomTypeMapping[tipoHabitacion]) {
+            roomType = currentRoomTypeMapping[tipoHabitacion]
+          } else {
+            // Buscar coincidencia parcial o normalizada
+            const tipoNormalizado = tipoHabitacion.toLowerCase().trim()
+            const tipoCapitalizado = tipoHabitacion.charAt(0).toUpperCase() + tipoHabitacion.slice(1).toLowerCase()
+
+            roomType =
+              currentRoomTypeMapping[tipoNormalizado] ||
+              currentRoomTypeMapping[tipoCapitalizado] ||
+              currentRoomTypeMapping[tipoHabitacion.toUpperCase()]
+          }
+
+          if (roomType && currentRoomPrices[roomType]) {
+            newForm.monto = currentRoomPrices[roomType].toString()
+          } else {
+            // Debug: mostrar información para diagnóstico
+            console.log("No se encontró precio para:", {
+              habitacion: value,
+              tipo: tipoHabitacion,
+              roomType: roomType,
+              availableTypes: Object.keys(currentRoomTypeMapping),
+              availablePrices: Object.keys(currentRoomPrices),
+            })
           }
         }
       }

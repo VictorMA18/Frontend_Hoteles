@@ -1,7 +1,16 @@
+"use client"
+
 import { useState, useEffect } from "react"
 
-const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarReservas }) => {
-  const [reservas, setReservas] = useState([])
+const Reservas = ({
+  habitacionesData,
+  roomPrices,
+  roomTypeMapping,
+  onConfirmarReservas,
+  onActualizarEstadoHabitacion,
+  reservas,
+  setReservas,
+}) => {
   const [selectedIds, setSelectedIds] = useState([])
   const [form, setForm] = useState({
     nombre: "",
@@ -9,13 +18,41 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     habitacion: "",
     huespedes: "1",
     medioPago: "",
-    pago: false,
     monto: "",
     montoTotal: "",
     descuento: "10",
     entrada: "",
     salida: "",
   })
+
+  // Configuración de precios por tipo de habitación (FALLBACK)
+  const fallbackRoomPrices = {
+    matrimonial: 90.0,
+    doble: 120.0,
+    triple: 150.0,
+    suite: 110.0,
+  }
+
+  // Mapeo de tipos de habitación - MEJORADO PARA INCLUIR MÁS VARIACIONES
+  const fallbackRoomTypeMapping = {
+    "Matr.": "matrimonial",
+    Matrimonial: "matrimonial",
+    matrimonial: "matrimonial",
+    MATRIMONIAL: "matrimonial",
+    Doble: "doble",
+    doble: "doble",
+    DOBLE: "doble",
+    Triple: "triple",
+    triple: "triple",
+    TRIPLE: "triple",
+    Suite: "suite",
+    suite: "suite",
+    SUITE: "suite",
+  }
+
+  // Usar props si están disponibles, sino usar fallback
+  const currentRoomPrices = roomPrices || fallbackRoomPrices
+  const currentRoomTypeMapping = roomTypeMapping || fallbackRoomTypeMapping
 
   // Filtrar habitaciones disponibles para el selector
   const habitacionesDisponibles = habitacionesData
@@ -37,7 +74,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       const montoBase = Number.parseFloat(form.monto) * dias
       const descuento = Number.parseFloat(form.descuento) || 0
       const montoTotal = montoBase * (1 - descuento / 100)
-
       setForm((prev) => ({
         ...prev,
         montoTotal: montoTotal.toFixed(2),
@@ -50,21 +86,78 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     }
   }, [form.monto, form.entrada, form.salida, form.descuento])
 
+  // Efecto para verificar reservas expiradas
+  useEffect(() => {
+    const verificarReservasExpiradas = () => {
+      const hoy = new Date()
+      hoy.setHours(0, 0, 0, 0)
+
+      if (setReservas) {
+        setReservas((prev) =>
+          prev.map((reserva) => {
+            if (reserva.estado === "En espera" || reserva.estado === "Confirmada") {
+              const fechaEntrada = new Date(reserva.entrada)
+              fechaEntrada.setHours(0, 0, 0, 0)
+
+              if (fechaEntrada < hoy) {
+                // Liberar habitación si estaba reservada
+                if (reserva.pago && onActualizarEstadoHabitacion) {
+                  onActualizarEstadoHabitacion(reserva.habitacion, "disponible")
+                }
+                return { ...reserva, estado: "Expirada" }
+              }
+            }
+            return reserva
+          }),
+        )
+      }
+    }
+
+    const interval = setInterval(verificarReservasExpiradas, 60000) // Verificar cada minuto
+    verificarReservasExpiradas() // Verificar inmediatamente
+
+    return () => clearInterval(interval)
+  }, [onActualizarEstadoHabitacion, setReservas])
+
   const handleInputChange = (field, value) => {
     setForm((prev) => {
       const newForm = { ...prev, [field]: value }
-
-      // Auto-completar monto cuando se selecciona habitación
+      // Auto-completar monto cuando se selecciona habitación - MEJORADO
       if (field === "habitacion" && value && habitacionesData) {
         const habitacion = habitacionesData[value]
         if (habitacion) {
-          const roomType = roomTypeMapping[habitacion.tipo]
-          if (roomType && roomPrices && roomPrices[roomType]) {
-            newForm.monto = roomPrices[roomType].toString()
+          // Intentar múltiples variaciones del tipo de habitación
+          let roomType = null
+          const tipoHabitacion = habitacion.tipo
+
+          // Buscar coincidencia exacta primero
+          if (currentRoomTypeMapping[tipoHabitacion]) {
+            roomType = currentRoomTypeMapping[tipoHabitacion]
+          } else {
+            // Buscar coincidencia parcial o normalizada
+            const tipoNormalizado = tipoHabitacion.toLowerCase().trim()
+            const tipoCapitalizado = tipoHabitacion.charAt(0).toUpperCase() + tipoHabitacion.slice(1).toLowerCase()
+
+            roomType =
+              currentRoomTypeMapping[tipoNormalizado] ||
+              currentRoomTypeMapping[tipoCapitalizado] ||
+              currentRoomTypeMapping[tipoHabitacion.toUpperCase()]
+          }
+
+          if (roomType && currentRoomPrices[roomType]) {
+            newForm.monto = currentRoomPrices[roomType].toString()
+          } else {
+            // Debug: mostrar información para diagnóstico
+            console.log("No se encontró precio para:", {
+              habitacion: value,
+              tipo: tipoHabitacion,
+              roomType: roomType,
+              availableTypes: Object.keys(currentRoomTypeMapping),
+              availablePrices: Object.keys(currentRoomPrices),
+            })
           }
         }
       }
-
       return newForm
     })
   }
@@ -115,8 +208,16 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     // Validar fechas
     const fechaEntrada = new Date(form.entrada)
     const fechaSalida = new Date(form.salida)
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+
     if (fechaSalida <= fechaEntrada) {
       showToast("La fecha de salida debe ser posterior a la fecha de entrada", "error")
+      return
+    }
+
+    if (fechaEntrada < hoy) {
+      showToast("La fecha de entrada no puede ser anterior a hoy", "error")
       return
     }
 
@@ -127,7 +228,7 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       habitacion: form.habitacion.trim(),
       huespedes: Number.parseInt(form.huespedes),
       medioPago: form.medioPago,
-      pago: Boolean(form.pago),
+      pago: false, // Por defecto todas las reservas están sin pagar
       monto: Number.parseFloat(form.monto),
       montoTotal: Number.parseFloat(form.montoTotal),
       descuento: Number.parseFloat(form.descuento),
@@ -138,14 +239,15 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       fechaCreacion: new Date().toLocaleDateString("es-PE"),
     }
 
-    setReservas((prev) => [...prev, nuevaReserva])
+    if (setReservas) {
+      setReservas((prev) => [...prev, nuevaReserva])
+    }
     setForm({
       nombre: "",
       dni: "",
       habitacion: "",
       huespedes: "1",
       medioPago: "",
-      pago: false,
       monto: "",
       montoTotal: "",
       descuento: "10",
@@ -165,19 +267,61 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       return
     }
 
-    const reservasAConfirmar = reservas.filter((r) => selectedIds.includes(r.id))
+    const reservasAConfirmar = reservas.filter((r) => selectedIds.includes(r.id) && r.pago)
+
+    if (reservasAConfirmar.length === 0) {
+      showToast("Solo se pueden confirmar reservas pagadas", "error")
+      return
+    }
 
     // Actualizar estado de reservas a confirmada
-    setReservas((prev) =>
-      prev.map((reserva) => (selectedIds.includes(reserva.id) ? { ...reserva, estado: "Confirmada" } : reserva)),
-    )
+    if (setReservas) {
+      setReservas((prev) =>
+        prev.map((reserva) =>
+          selectedIds.includes(reserva.id) && reserva.pago ? { ...reserva, estado: "Confirmada" } : reserva,
+        ),
+      )
+    }
 
     // Pasar reservas confirmadas a Hospedaje
     if (onConfirmarReservas) {
       onConfirmarReservas(reservasAConfirmar)
     }
 
-    showToast(`${selectedIds.length} reserva(s) confirmada(s)`)
+    showToast(`${reservasAConfirmar.length} reserva(s) confirmada(s)`)
+    setSelectedIds([])
+  }
+
+  const handleConfirmarPago = () => {
+    if (selectedIds.length === 0) {
+      showToast("Selecciona al menos una reserva para confirmar el pago", "error")
+      return
+    }
+
+    const reservasNoPagadas = reservas.filter((r) => selectedIds.includes(r.id) && !r.pago)
+
+    if (reservasNoPagadas.length === 0) {
+      showToast("Las reservas seleccionadas ya están pagadas", "error")
+      return
+    }
+
+    // Actualizar estado de pago y cambiar habitaciones a reservado
+    if (setReservas) {
+      setReservas((prev) =>
+        prev.map((reserva) => {
+          if (selectedIds.includes(reserva.id) && !reserva.pago) {
+            // Cambiar habitación a estado "reservado"
+            if (onActualizarEstadoHabitacion) {
+              onActualizarEstadoHabitacion(reserva.habitacion, "reservado")
+            }
+            return { ...reserva, pago: true }
+          }
+          return reserva
+        }),
+      )
+    }
+
+    showToast(`${reservasNoPagadas.length} pago(s) confirmado(s)`)
     setSelectedIds([])
   }
 
@@ -187,10 +331,19 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       return
     }
 
-    setReservas((prev) =>
-      prev.map((reserva) => (selectedIds.includes(reserva.id) ? { ...reserva, estado: "Cancelada" } : reserva)),
-    )
+    // Liberar habitaciones de reservas canceladas
+    const reservasACancelar = reservas.filter((r) => selectedIds.includes(r.id))
+    reservasACancelar.forEach((reserva) => {
+      if (reserva.pago && onActualizarEstadoHabitacion) {
+        onActualizarEstadoHabitacion(reserva.habitacion, "disponible")
+      }
+    })
 
+    if (setReservas) {
+      setReservas((prev) =>
+        prev.map((reserva) => (selectedIds.includes(reserva.id) ? { ...reserva, estado: "Cancelada" } : reserva)),
+      )
+    }
     showToast(`${selectedIds.length} reserva(s) cancelada(s)`)
     setSelectedIds([])
   }
@@ -201,6 +354,8 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
         return { background: "#dcfce7", color: "#166534" }
       case "Cancelada":
         return { background: "#fef2f2", color: "#dc2626" }
+      case "Expirada":
+        return { background: "#f3f4f6", color: "#6b7280" }
       case "En espera":
         return { background: "#fef3c7", color: "#92400e" }
       default:
@@ -237,7 +392,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 required
               />
             </div>
-
             <div>
               <label className="form-label">DNI *</label>
               <input
@@ -251,7 +405,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 required
               />
             </div>
-
             <div>
               <label className="form-label">Habitación *</label>
               <select
@@ -268,7 +421,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 ))}
               </select>
             </div>
-
             <div>
               <label className="form-label">Huéspedes *</label>
               <input
@@ -282,7 +434,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 required
               />
             </div>
-
             <div>
               <label className="form-label">Medio de Pago *</label>
               <select
@@ -299,7 +450,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 <option value="plin">Plin</option>
               </select>
             </div>
-
             <div>
               <label className="form-label">Monto por Noche (S/) *</label>
               <input
@@ -314,7 +464,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 required
               />
             </div>
-
             <div>
               <label className="form-label">Fecha Entrada *</label>
               <input
@@ -325,7 +474,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 required
               />
             </div>
-
             <div>
               <label className="form-label">Fecha Salida *</label>
               <input
@@ -336,7 +484,6 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 required
               />
             </div>
-
             <div>
               <label className="form-label">Monto Total (S/)</label>
               <input
@@ -353,75 +500,37 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 </div>
               )}
             </div>
-
-            <div>
-              <label className="form-label">Estado del Pago</label>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  backgroundColor: "#ffffff",
-                  height: "42px",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  id="pago-checkbox"
-                  checked={form.pago}
-                  onChange={(e) => handleInputChange("pago", e.target.checked)}
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    accentColor: "#3b82f6",
-                    cursor: "pointer",
-                  }}
-                />
-                <label
-                  htmlFor="pago-checkbox"
-                  style={{
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                    color: "#374151",
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                >
-                  Pago Realizado
-                </label>
-                {form.pago && (
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      padding: "0.25rem 0.5rem",
-                      borderRadius: "12px",
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      backgroundColor: "#dcfce7",
-                      color: "#166534",
-                    }}
-                  >
-                    ✓ Pagado
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div style={{ gridColumn: "1 / -1", marginTop: "0.5rem", display: "flex", gap: "0.75rem" }}>
+            <div
+              style={{ gridColumn: "1 / -1", marginTop: "0.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}
+            >
               <button type="submit" className="btn btn-primary">
                 ➕ Registrar Reserva
               </button>
               <button
                 type="button"
-                className="btn btn-success"
+                className="btn"
                 onClick={handleConfirmarReservas}
                 disabled={selectedIds.length === 0}
-                style={{ backgroundColor: "#10b981", borderColor: "#10b981" }}
+                style={{
+                  backgroundColor: "#10b981",
+                  borderColor: "#10b981",
+                  color: "white",
+                }}
               >
                 ✅ Check-in ({selectedIds.length})
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleConfirmarPago}
+                disabled={selectedIds.length === 0}
+                style={{
+                  backgroundColor: "#8b5cf6",
+                  borderColor: "#8b5cf6",
+                  color: "white",
+                }}
+              >
+                💳 Confirmar Pago ({selectedIds.length})
               </button>
               <button
                 type="button"
@@ -551,75 +660,78 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
               </tr>
             </thead>
             <tbody>
-              {reservas.map((r) => (
-                <tr key={r.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                  <td style={{ padding: "0.75rem" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(r.id)}
-                      onChange={(e) => handleSelectReserva(r.id, e.target.checked)}
-                      disabled={r.estado === "Cancelada"}
-                      style={{ cursor: r.estado === "Cancelada" ? "not-allowed" : "pointer" }}
-                    />
-                  </td>
-                  <td style={{ padding: "0.75rem", fontWeight: "500" }}>{r.nombre}</td>
-                  <td style={{ padding: "0.75rem" }}>{r.dni}</td>
-                  <td style={{ padding: "0.75rem", textAlign: "center" }}>{r.habitacion}</td>
-                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                    <span
-                      style={{
-                        background: "#f0f9ff",
-                        color: "#0369a1",
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "12px",
-                        fontSize: "0.75rem",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {r.huespedes} 👥
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.75rem", textTransform: "capitalize" }}>{r.medioPago}</td>
-                  <td style={{ padding: "0.75rem" }}>
-                    <span
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "12px",
-                        fontSize: "0.75rem",
-                        fontWeight: "500",
-                        background: r.pago ? "#dcfce7" : "#fef3c7",
-                        color: r.pago ? "#166534" : "#92400e",
-                      }}
-                    >
-                      {r.pago ? "Sí" : "No"}
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.75rem" }}>
-                    <div>S/ {r.montoTotal.toFixed(2)}</div>
-                    <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                      {r.dias} noche(s) - {r.descuento}% desc.
-                    </div>
-                  </td>
-                  <td style={{ padding: "0.75rem" }}>
-                    <span
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "12px",
-                        fontSize: "0.75rem",
-                        fontWeight: "500",
-                        ...getEstadoColor(r.estado),
-                      }}
-                    >
-                      {r.estado}
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.75rem" }}>{r.entrada}</td>
-                  <td style={{ padding: "0.75rem" }}>{r.salida}</td>
-                </tr>
-              ))}
-              {reservas.length === 0 && (
+              {reservas &&
+                reservas.map((r) => (
+                  <tr key={r.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td style={{ padding: "0.75rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(r.id)}
+                        onChange={(e) => handleSelectReserva(r.id, e.target.checked)}
+                        disabled={r.estado === "Cancelada" || r.estado === "Expirada"}
+                        style={{
+                          cursor: r.estado === "Cancelada" || r.estado === "Expirada" ? "not-allowed" : "pointer",
+                        }}
+                      />
+                    </td>
+                    <td style={{ padding: "0.75rem", fontWeight: "500" }}>{r.nombre}</td>
+                    <td style={{ padding: "0.75rem" }}>{r.dni}</td>
+                    <td style={{ padding: "0.75rem", textAlign: "center" }}>{r.habitacion}</td>
+                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                      <span
+                        style={{
+                          background: "#f0f9ff",
+                          color: "#0369a1",
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "12px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {r.huespedes} 👥
+                      </span>
+                    </td>
+                    <td style={{ padding: "0.75rem", textTransform: "capitalize" }}>{r.medioPago}</td>
+                    <td style={{ padding: "0.75rem" }}>
+                      <span
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "12px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                          background: r.pago ? "#dcfce7" : "#fef3c7",
+                          color: r.pago ? "#166534" : "#92400e",
+                        }}
+                      >
+                        {r.pago ? "Sí" : "No"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "0.75rem" }}>
+                      <div>S/ {r.montoTotal.toFixed(2)}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                        {r.dias} noche(s) - {r.descuento}% desc.
+                      </div>
+                    </td>
+                    <td style={{ padding: "0.75rem" }}>
+                      <span
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "12px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                          ...getEstadoColor(r.estado),
+                        }}
+                      >
+                        {r.estado}
+                      </span>
+                    </td>
+                    <td style={{ padding: "0.75rem" }}>{r.entrada}</td>
+                    <td style={{ padding: "0.75rem" }}>{r.salida}</td>
+                  </tr>
+                ))}
+              {(!reservas || reservas.length === 0) && (
                 <tr>
-                  <td colSpan="10" style={{ textAlign: "center", padding: "2rem", color: "#6b7280" }}>
+                  <td colSpan="11" style={{ textAlign: "center", padding: "2rem", color: "#6b7280" }}>
                     No hay reservas activas
                   </td>
                 </tr>

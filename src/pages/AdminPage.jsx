@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useEffect } from "react"
 import Header from "../components/HeaderAdmin"
 import Hospedaje from "./Hospedaje"
@@ -10,6 +12,11 @@ import "../styles/global.css"
 const App = () => {
   const [currentPage, setCurrentPage] = useState("hospedaje")
   const [huespedes, setHuespedes] = useState([])
+  const [reservas, setReservas] = useState(() => {
+    const saved = localStorage.getItem("reservas")
+    return saved ? JSON.parse(saved) : []
+  })
+
   // Estado de habitaciones, ahora se llenará desde el backend
   const [habitacionesData, setHabitacionesData] = useState({})
 
@@ -33,8 +40,14 @@ const App = () => {
         console.error("Error al obtener habitaciones:", error)
       }
     }
+
     fetchHabitaciones()
   }, [])
+
+  // Guardar reservas en localStorage cuando cambien
+  useEffect(() => {
+    localStorage.setItem("reservas", JSON.stringify(reservas))
+  }, [reservas])
 
   // Configuración de precios por tipo de habitación (desde configuración)
   const roomPrices = {
@@ -44,12 +57,21 @@ const App = () => {
     suite: 110.0,
   }
 
-  // Mapeo de tipos de habitación
+  // Mapeo de tipos de habitación - ACTUALIZADO para backend
   const roomTypeMapping = {
     "Matr.": "matrimonial",
+    Matrimonial: "matrimonial",
+    matrimonial: "matrimonial",
+    MATRIMONIAL: "matrimonial",
     Doble: "doble",
+    doble: "doble",
+    DOBLE: "doble",
     Triple: "triple",
+    triple: "triple",
+    TRIPLE: "triple",
     Suite: "suite",
+    suite: "suite",
+    SUITE: "suite",
   }
 
   const handleNavigate = (page) => {
@@ -172,6 +194,9 @@ const App = () => {
             roomPrices={roomPrices}
             roomTypeMapping={roomTypeMapping}
             onConfirmarReservas={confirmarReservas}
+            onActualizarEstadoHabitacion={actualizarEstadoHabitacion}
+            reservas={reservas}
+            setReservas={setReservas}
           />
         )
       case "habitaciones":

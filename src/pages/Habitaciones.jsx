@@ -19,6 +19,8 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
         return "#F44336" // Rojo
       case "limpieza":
         return "#9E9E9E" // Gris
+      case "reservado":
+        return "#8b5cf6" // Morado
       default:
         return "#E0E0E0"
     }
@@ -38,11 +40,9 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
     toast.className = `toast toast-${type}`
     toast.textContent = message
     document.body.appendChild(toast)
-
     setTimeout(() => {
       toast.classList.add("toast-show")
     }, 100)
-
     setTimeout(() => {
       toast.classList.remove("toast-show")
       setTimeout(() => document.body.removeChild(toast), 300)
@@ -58,6 +58,8 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
         return "Ocupada"
       case "limpieza":
         return "Limpieza"
+      case "reservado":
+        return "Reservado"
       default:
         return "Desconocido"
     }
@@ -113,7 +115,6 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
               4° Piso
             </button>
           </div>
-
           {/* Leyenda */}
           <div
             style={{
@@ -157,8 +158,18 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
               ></div>
               <span>Limpieza</span>
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <div
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  backgroundColor: "#8b5cf6",
+                  borderRadius: "4px",
+                }}
+              ></div>
+              <span>Reservado</span>
+            </div>
           </div>
-
           {/* Mapa de Habitaciones */}
           <div style={{ position: "relative", width: "100%", maxWidth: "800px", margin: "0 auto" }}>
             {/* Área de Estacionamiento */}
@@ -175,7 +186,6 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
             >
               Estacionamiento
             </div>
-
             {/* Habitaciones */}
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               {/* Primera fila de habitaciones */}
@@ -232,7 +242,6 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
                     </div>
                   ))}
               </div>
-
               {/* Pasillo */}
               <div
                 style={{
@@ -246,7 +255,6 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
               >
                 Pasillo
               </div>
-
               {/* Segunda fila de habitaciones */}
               <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between" }}>
                 {habitacionesPorPiso
@@ -312,7 +320,7 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
           <h2>Estadísticas de Habitaciones</h2>
         </div>
         <div className="card-content">
-          <div className="stats-grid">
+          <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
             <div className="card" style={{ padding: "1rem", textAlign: "center" }}>
               <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem", color: "#8BC34A" }}>🟢</div>
               <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.25rem" }}>Disponibles</div>
@@ -320,7 +328,6 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
                 {Object.values(habitacionesData).filter((h) => h.estado === "disponible").length}
               </div>
             </div>
-
             <div className="card" style={{ padding: "1rem", textAlign: "center" }}>
               <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem", color: "#F44336" }}>🔴</div>
               <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.25rem" }}>Ocupadas</div>
@@ -328,7 +335,6 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
                 {Object.values(habitacionesData).filter((h) => h.estado === "ocupada").length}
               </div>
             </div>
-
             <div className="card" style={{ padding: "1rem", textAlign: "center" }}>
               <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem", color: "#9E9E9E" }}>⚪</div>
               <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.25rem" }}>En Limpieza</div>
@@ -336,8 +342,14 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
                 {Object.values(habitacionesData).filter((h) => h.estado === "limpieza").length}
               </div>
             </div>
+            <div className="card" style={{ padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem", color: "#8b5cf6" }}>🟣</div>
+              <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.25rem" }}>Reservadas</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
+                {Object.values(habitacionesData).filter((h) => h.estado === "reservado").length}
+              </div>
+            </div>
           </div>
-
           <div style={{ marginTop: "1rem", textAlign: "center", fontSize: "0.875rem", color: "#6b7280" }}>
             <p>
               <strong>Nota:</strong> Haz clic en las habitaciones en estado de limpieza para marcarlas como disponibles.
