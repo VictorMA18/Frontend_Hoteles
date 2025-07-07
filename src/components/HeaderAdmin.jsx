@@ -1,8 +1,10 @@
 import { useState } from "react"
+import { useAuth } from "@/features/auth/useAuth"
 
 const Header = ({ currentPage, onNavigate }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const { logout } = useAuth()
 
   const pages = {
     hospedaje: "Hospedaje",
@@ -26,7 +28,6 @@ const Header = ({ currentPage, onNavigate }) => {
 
   const handleUserAction = (action) => {
     setIsUserMenuOpen(false)
-    // Handle user actions
     switch (action) {
       case "profile":
         alert("Ver perfil")
@@ -36,7 +37,9 @@ const Header = ({ currentPage, onNavigate }) => {
         break
       case "logout":
         if (confirm("¿Estás seguro de que quieres cerrar sesión?")) {
-          alert("Cerrando sesión...")
+          logout()
+          // Redirigir a login o recargar
+          window.location.href = "/login"
         }
         break
     }

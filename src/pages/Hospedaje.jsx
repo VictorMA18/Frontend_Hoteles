@@ -18,22 +18,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
   })
   const [loading, setLoading] = useState(false)
   const [usuarioExistente, setUsuarioExistente] = useState(false)
-
-  // Configuración de precios por tipo de habitación (desde configuración)
-  const roomPrices = {
-    matrimonial: 90.0,
-    doble: 120.0,
-    triple: 150.0,
-    suite: 110.0,
-  }
-
-  // Mapeo de tipos de habitación
-  const roomTypeMapping = {
-    "Matrimonial": "matrimonial", 
-    "Doble": "doble",
-    "Triple": "triple",
-    "Suite": "suite",
-  }
+  const [reservasBackend, setReservasBackend] = useState([])
 
   // Filtrar habitaciones disponibles para el selector
   const habitacionesDisponibles = Object.values(habitacionesData).filter(
@@ -59,6 +44,21 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     }
   }, [form.monto, form.diasHospedaje, form.descuento])
 
+  // Obtener reservas confirmadas/ocupadas/limpieza del backend al cargar
+  useEffect(() => {
+    const fetchReservas = async () => {
+      try {
+        const res = await axiosInstance.get("http://localhost:8000/api/reservas/confirmadas-ocupadas-limpieza/")
+        setReservasBackend(res.data)
+      } catch (err) {
+        // Puedes mostrar un toast si quieres
+        // showToast("No se pudieron cargar las reservas del backend", "error")
+        setReservasBackend([])
+      }
+    }
+    fetchReservas()
+  }, [])
+
   const handleInputChange = (field, value) => {
     setForm((prev) => {
       const newForm = { ...prev, [field]: value }
@@ -66,11 +66,8 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
       // Auto-completar monto cuando se selecciona habitación
       if (field === "habitacion" && value) {
         const habitacion = habitacionesData[value]
-        if (habitacion) {
-          const roomType = roomTypeMapping[habitacion.tipo]
-          if (roomType && roomPrices[roomType]) {
-            newForm.monto = roomPrices[roomType].toString()
-          }
+        if (habitacion && habitacion.precio_actual) {
+          newForm.monto = habitacion.precio_actual.toString()
         }
       }
       return newForm
@@ -264,16 +261,35 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     }
   }
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (selectedIds.length === 0) {
       showToast("Selecciona al menos un huésped para hacer checkout", "error")
       return
     }
 
-    // Usar la función del componente padre para hacer checkout
-    onCheckoutHuespedes(selectedIds)
-
-    showToast(`${selectedIds.length} huésped(es) han hecho checkout`)
+    setLoading(true)
+    let exito = 0
+    let errores = []
+    for (const id of selectedIds) {
+      try {
+        await axiosInstance.post(`http://localhost:8000/api/reservas/${id}/check-out/`)
+        exito++
+      } catch (err) {
+        errores.push(id)
+      }
+    }
+    setLoading(false)
+    if (exito > 0) {
+      showToast(`${exito} huésped(es) han hecho checkout`, "success")
+      // Refrescar reservas del backend
+      try {
+        const res = await axiosInstance.get("http://localhost:8000/api/reservas/confirmadas-ocupadas-limpieza/")
+        setReservasBackend(res.data)
+      } catch {}
+    }
+    if (errores.length > 0) {
+      showToast(`Error al hacer checkout de: ${errores.join(", ")}`, "error")
+    }
     setSelectedIds([])
   }
 
@@ -281,16 +297,62 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((selectedId) => selectedId !== id)))
   }
 
-  const filteredHuespedes = huespedes.filter(
-    (huesped) =>
-      huesped.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      huesped.dni.includes(searchTerm) ||
-      huesped.habitacion.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  // Función para formatear fecha y hora desde string ISO
+  function formatearFechaHora(fechaIso) {
+    if (!fechaIso) return { fecha: "", hora: "" };
+    const fechaObj = new Date(fechaIso);
+    const fecha = fechaObj.toLocaleDateString("es-PE");
+    const hora = fechaObj.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+    return { fecha, hora };
+  }
 
-  const huespedesTotales = huespedes.length
-  const huespedesActivos = huespedes.filter((h) => h.estancia === "activa").length
-  const ingresoTotal = huespedes.reduce((total, h) => total + (h.montoTotal || h.monto) * (1 - h.descuento / 100), 0)
+  // Mapeo de reservas del backend a estructura de la tabla
+  const reservasMapeadas = reservasBackend.map((res) => {
+    const { fecha: fechaEntrada, hora: horaEntrada } = formatearFechaHora(res.fecha_checkin_real);
+    const { fecha: fechaSalida, hora: horaSalida } = formatearFechaHora(res.fecha_checkout_real);
+    return {
+      id: res.id,
+      nombre: `${res.usuario_nombres || ''} ${res.usuario_apellidos || ''}`.trim() || `Usuario DNI: ${res.usuario_dni}`,
+      dni: res.usuario_dni,
+      habitacion: `${res.habitacion_numero} - ${res.habitacion_tipo}`,
+      huespedes: res.numero_huespedes,
+      diasHospedaje: res.total_noches,
+      medioPago: res.medio_pago || '', // Si tienes el campo, si no, dejar vacío
+      monto: Number(res.precio_noche) || 0,
+      montoTotal: Number(res.total_pagar) || 0,
+      descuento: Number(res.descuento) || 0,
+      estancia: res.fecha_checkout_real ? "finalizada" : "activa",
+      pagado: true, // Asumimos pagado si está en la lista
+      fechaEntrada,
+      horaEntrada,
+      fechaSalida,
+      horaSalida,
+      usuario: res.usuario_admin || '',
+    };
+  });
+
+  const filteredHuespedes = reservasBackend.length > 0
+    ? reservasMapeadas.filter(
+        (huesped) =>
+          (huesped.nombre?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+          (huesped.dni || "").includes(searchTerm) ||
+          (huesped.habitacion?.toLowerCase() || "").includes(searchTerm.toLowerCase()),
+      )
+    : huespedes.filter(
+        (huesped) =>
+          huesped.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          huesped.dni.includes(searchTerm) ||
+          huesped.habitacion.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+
+  // Unificar huéspedes locales y backend (evitar duplicados por id)
+  const todosHuespedes = reservasBackend.length > 0
+    ? [...reservasMapeadas, ...huespedes.filter(h => !reservasMapeadas.some(r => r.id === h.id))]
+    : [...huespedes];
+
+  const huespedesTotales = todosHuespedes.length;
+  const huespedesActivos = todosHuespedes.filter((h) => h.estancia === "activa").length;
+  const ingresoTotal = todosHuespedes.reduce((total, h) => total + ((h.montoTotal || h.monto) * (1 - (h.descuento || 0) / 100)), 0)
 
   return (
     <>

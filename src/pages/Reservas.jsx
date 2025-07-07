@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 
-const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarReservas }) => {
+const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas }) => {
   const [reservas, setReservas] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
   const [form, setForm] = useState({
@@ -18,26 +18,7 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     salida: "",
     dni_admin: "",
   })
-
-  // Mapeo local actualizado para asegurar compatibilidad
-  const localRoomTypeMapping = {
-    "Matrimonial": "matrimonial", // Agregado para el tipo completo del backend
-    "Doble": "doble",
-    "Triple": "triple",
-    "Suite": "suite",
-    // Mantener compatibilidad con el mapeo que viene como prop
-    ...roomTypeMapping
-  }
-
-  // Precios locales como fallback
-  const localRoomPrices = {
-    matrimonial: 90.0,
-    doble: 120.0,
-    triple: 150.0,
-    suite: 110.0,
-    // Mantener precios que vienen como prop
-    ...roomPrices
-  }
+  const [usuarioExistente, setUsuarioExistente] = useState(false)
 
   // Filtrar habitaciones disponibles para el selector
   const habitacionesDisponibles = habitacionesData
@@ -79,12 +60,8 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       // Auto-completar monto cuando se selecciona habitación
       if (field === "habitacion" && value && habitacionesData) {
         const habitacion = habitacionesData[value]
-        if (habitacion) {
-          const roomType = localRoomTypeMapping[habitacion.tipo]
-          
-          if (roomType && localRoomPrices && localRoomPrices[roomType]) {
-            newForm.monto = localRoomPrices[roomType].toString()
-          }
+        if (habitacion && habitacion.precio_actual) {
+          newForm.monto = habitacion.precio_actual.toString()
         }
       }
 
@@ -107,8 +84,7 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (
-      !form.nombres.trim() ||
-      !form.apellidos.trim() ||
+      (!usuarioExistente && (!form.nombres.trim() || !form.apellidos.trim())) ||
       !form.dni.trim() ||
       !form.habitacion.trim() ||
       !form.huespedes ||
@@ -156,13 +132,15 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     // Construir el JSON exacto
     const payload = {
       dni: form.dni.trim(),
-      nombres: form.nombres.trim(),
-      apellidos: form.apellidos.trim(),
       habitacion_id: form.habitacion.startsWith("HAB") ? form.habitacion : `HAB${form.habitacion}`,
       numero_huespedes: Number.parseInt(form.huespedes),
       fecha_checkin_programado,
       fecha_checkout_programado,
       dni_admin,
+    }
+    if (!usuarioExistente) {
+      payload.nombres = form.nombres.trim()
+      payload.apellidos = form.apellidos.trim()
     }
     // Mostrar en consola antes de enviar
     console.log("[RESERVA PENDIENTE] Payload a enviar:", payload)
@@ -191,7 +169,7 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
     // --- FIN ENVÍO AL ENDPOINT ---
     const nuevaReserva = {
       id: Date.now().toString(),
-      nombre: `${form.nombres.trim()} ${form.apellidos.trim()}`,
+      nombre: usuarioExistente ? "-" : `${form.nombres.trim()} ${form.apellidos.trim()}`,
       dni: form.dni.trim(),
       habitacion: form.habitacion.trim(),
       huespedes: Number.parseInt(form.huespedes),
@@ -223,6 +201,7 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
       salida: "",
       dni_admin: "",
     })
+    setUsuarioExistente(false)
     showToast(`Reserva de ${nuevaReserva.nombre} agregada`)
   }
 
@@ -297,6 +276,36 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
             onSubmit={handleSubmit}
             style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem" }}
           >
+            <div style={{ gridColumn: "1 / -1", marginBottom: "1rem" }}>
+              <label style={{ display: "flex", alignItems: "center", fontSize: "0.875rem", fontWeight: "500" }}>
+                <input
+                  type="checkbox"
+                  checked={usuarioExistente}
+                  onChange={(e) => {
+                    setUsuarioExistente(e.target.checked)
+                    if (e.target.checked) {
+                      setForm(prev => ({ ...prev, nombres: "", apellidos: "" }))
+                    }
+                  }}
+                  style={{ marginRight: "0.5rem" }}
+                />
+                <span>👤 Usuario existente (solo requiere DNI)</span>
+              </label>
+              {usuarioExistente && (
+                <div style={{
+                  marginTop: "0.5rem",
+                  padding: "0.5rem",
+                  backgroundColor: "#ecfdf5",
+                  border: "1px solid #d1fae5",
+                  borderRadius: "4px",
+                  fontSize: "0.75rem",
+                  color: "#065f46"
+                }}>
+                  ✓ Solo se enviará el DNI. Los nombres y apellidos se omitirán del registro.
+                </div>
+              )}
+            </div>
+            {/* Campos de nombres y apellidos */}
             <div>
               <label className="form-label">Nombres *</label>
               <input
@@ -305,7 +314,9 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 value={form.nombres}
                 onChange={(e) => handleInputChange("nombres", e.target.value)}
                 placeholder="Ej. Juan Carlos"
-                required
+                required={!usuarioExistente}
+                disabled={usuarioExistente}
+                style={usuarioExistente ? { backgroundColor: "#f3f4f6" } : {}}
               />
             </div>
             <div>
@@ -316,7 +327,9 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 value={form.apellidos}
                 onChange={(e) => handleInputChange("apellidos", e.target.value)}
                 placeholder="Ej. Pérez Gómez"
-                required
+                required={!usuarioExistente}
+                disabled={usuarioExistente}
+                style={usuarioExistente ? { backgroundColor: "#f3f4f6" } : {}}
               />
             </div>
 
@@ -505,7 +518,7 @@ const Reservas = ({ habitacionesData, roomPrices, roomTypeMapping, onConfirmarRe
                 disabled={selectedIds.length === 0}
                 style={{ backgroundColor: "#10b981", borderColor: "#10b981" }}
               >
-                ✅ Confirmar Reserva ({selectedIds.length})
+                ✅ Check-in ({selectedIds.length})
               </button>
               <button
                 type="button"
