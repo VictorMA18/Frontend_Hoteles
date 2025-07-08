@@ -1,8 +1,16 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import axiosInstance from "@/libs/axiosInstance"
 
-const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
+const Habitaciones = ({ habitacionesData, onActualizarEstado, fetchHabitaciones }) => {
   const [pisoActual, setPisoActual] = useState("1")
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  // Efecto para detectar cambios en habitacionesData
+  useEffect(() => {
+    setLastUpdateTime(Date.now())
+    setIsUpdating(false)
+  }, [habitacionesData])
 
   // Filtrar habitaciones por piso
   const habitacionesPorPiso = Object.values(habitacionesData).filter((habitacion) =>
@@ -18,6 +26,8 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
         return "#F44336" // Rojo
       case "limpieza":
         return "#9E9E9E" // Gris
+      case "reservada":
+        return "#8b5cf6" // Morado
       default:
         return "#E0E0E0"
     }
@@ -25,19 +35,31 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
 
   // Cambiar estado de habitación
   const cambiarEstado = async (habitacion) => {
-    console.log('DEBUG habitacion:', habitacion);
     // Solo permitir cambiar de limpieza a disponible
     if (habitacion.estado === "limpieza") {
       if (!habitacion.codigo) {
         showToast(`No se encontró código de habitación para ${habitacion.numero}`, "error")
         return
       }
+      
       try {
+        setIsUpdating(true)
         await axiosInstance.post(`http://localhost:8000/api/habitaciones/${habitacion.codigo}/finalizar-limpieza/`)
+        
+        // Actualizar estado local inmediatamente para feedback visual
         onActualizarEstado(habitacion.numero, "disponible")
+        
         showToast(`Habitación ${habitacion.numero} ahora está disponible`)
+        
+        // Refrescar datos completos del backend inmediatamente
+        if (typeof fetchHabitaciones === "function") {
+          await fetchHabitaciones()
+        }
+        
       } catch (err) {
+        console.error("Error al finalizar limpieza:", err)
         showToast(`Error al finalizar limpieza de la habitación ${habitacion.numero}`, "error")
+        setIsUpdating(false)
       }
     }
   }
@@ -67,6 +89,8 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
         return "Ocupada"
       case "limpieza":
         return "Limpieza"
+      case "reservada":
+        return "Reservada"
       default:
         return "Desconocido"
     }
@@ -165,6 +189,17 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
                 }}
               ></div>
               <span>Limpieza</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <div
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  backgroundColor: "#8b5cf6",
+                  borderRadius: "4px",
+                }}
+              ></div>
+              <span>Reservado</span>
             </div>
           </div>
 
@@ -321,7 +356,7 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
           <h2>Estadísticas de Habitaciones</h2>
         </div>
         <div className="card-content">
-          <div className="stats-grid">
+          <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
             <div className="card" style={{ padding: "1rem", textAlign: "center" }}>
               <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem", color: "#8BC34A" }}>🟢</div>
               <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.25rem" }}>Disponibles</div>
@@ -345,11 +380,22 @@ const Habitaciones = ({ habitacionesData, onActualizarEstado }) => {
                 {Object.values(habitacionesData).filter((h) => h.estado === "limpieza").length}
               </div>
             </div>
+
+            <div className="card" style={{ padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem", color: "#8b5cf6" }}>🟣</div>
+              <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "0.25rem" }}>Reservadas</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
+                {Object.values(habitacionesData).filter((h) => h.estado === "reservada").length}
+              </div>
+            </div>
           </div>
 
           <div style={{ marginTop: "1rem", textAlign: "center", fontSize: "0.875rem", color: "#6b7280" }}>
             <p>
               <strong>Nota:</strong> Haz clic en las habitaciones en estado de limpieza para marcarlas como disponibles.
+            </p>
+            <p style={{ fontSize: "0.75rem", marginTop: "0.5rem", opacity: 0.7 }}>
+              Última actualización: {new Date(lastUpdateTime).toLocaleTimeString("es-PE")}
             </p>
           </div>
         </div>

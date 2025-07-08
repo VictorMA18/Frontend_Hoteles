@@ -99,12 +99,6 @@ const Header = ({ currentPage, onNavigate }) => {
         >
           🛏️ Habitaciones
         </button>
-        <button
-          className={`nav-item ${currentPage === "configuracion" ? "active" : ""}`}
-          onClick={() => handleNavigate("configuracion")}
-        >
-          ⚙️ Configuración
-        </button>
       </nav>
 
       {/* Overlay */}

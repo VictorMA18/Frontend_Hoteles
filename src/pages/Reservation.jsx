@@ -28,8 +28,6 @@ function useCrearReserva() {
     setError(null);
     setSuccess(false);
     try {
-      // Mostrar el JSON que se enviaría al endpoint
-      console.log("[DEBUG] Reserva a enviar:", JSON.stringify(body, null, 2));
       const response = await axiosInstance.post(
         "http://localhost:8000/api/reservas/crear/",
         body
@@ -171,7 +169,6 @@ function Reservation() {
       tipo_habitacion: formReserva.tipo || document.getElementById('habitacion')?.value,
       numero_huespedes: formReserva.huespedes || document.getElementById('huespedes')?.value,
     };
-    console.log('[DEBUG] Payload buscar disponibilidad:', JSON.stringify(payload, null, 2));
     try {
       const response = await axiosInstance.post(
         "http://localhost:8000/api/habitaciones/buscar-disponibilidad/",
@@ -352,7 +349,6 @@ function Reservation() {
                   precio_noche: String(habitacionSeleccionada.precio_actual || habitacionSeleccionada.tipo_info?.precio_base || ''),
                   observaciones: null
                 };
-                console.log('Reserva a enviar:', body);
                 const data = await crearReserva(body);
                 if (data) {
                   alert('Reserva creada con éxito');

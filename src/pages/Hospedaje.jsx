@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import axiosInstance from "@/libs/axiosInstance";
 
-const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesped, onCheckoutHuespedes }) => {
+const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesped, onCheckoutHuespedes, fetchHabitaciones, fetchReservas }) => {
   const [selectedIds, setSelectedIds] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [form, setForm] = useState({
@@ -50,7 +50,6 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
       try {
         const res = await axiosInstance.get("http://localhost:8000/api/reservas/confirmadas-ocupadas-limpieza/")
         setReservasBackend(res.data)
-        console.log("Reservas del backend cargadas:", res.data)
       } catch (err) {
         // Puedes mostrar un toast si quieres
         // showToast("No se pudieron cargar las reservas del backend", "error")
@@ -223,6 +222,18 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
         montoTotal: "",
       })
       setUsuarioExistente(false)
+      // Refrescar habitaciones si la función está disponible
+      if (typeof fetchHabitaciones === "function") fetchHabitaciones()
+      // Refrescar reservas si la función está disponible
+      if (typeof fetchReservas === "function") fetchReservas()
+      
+      // Refrescar reservas del backend local para actualizar la tabla inmediatamente
+      try {
+        const res = await axiosInstance.get("http://localhost:8000/api/reservas/confirmadas-ocupadas-limpieza/")
+        setReservasBackend(res.data)
+      } catch (err) {
+        console.error("Error al actualizar reservas locales:", err)
+      }
     } catch (error) {
       let errorMessage = "Error desconocido al registrar huésped";
       if (error.response) {
@@ -287,6 +298,10 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
         const res = await axiosInstance.get("http://localhost:8000/api/reservas/confirmadas-ocupadas-limpieza/")
         setReservasBackend(res.data)
       } catch {}
+      // Refrescar reservas globales del padre
+      if (typeof fetchReservas === "function") fetchReservas()
+      // Refrescar habitaciones del padre
+      if (typeof fetchHabitaciones === "function") fetchHabitaciones()
     }
     if (errores.length > 0) {
       showToast(`Error al hacer checkout de: ${errores.join(", ")}`, "error")
@@ -299,6 +314,11 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
   }
 
   // Función para formatear fecha y hora desde string ISO
+  function formatearFecha(fechaIso) {
+    if (!fechaIso) return "";
+    const fechaObj = new Date(fechaIso);
+    return fechaObj.toLocaleDateString("es-PE");
+  }
   function formatearFechaHora(fechaIso) {
     if (!fechaIso) return { fecha: "", hora: "" };
     const fechaObj = new Date(fechaIso);
@@ -311,6 +331,8 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
   const reservasMapeadas = reservasBackend.map((res) => {
     const { fecha: fechaEntrada, hora: horaEntrada } = formatearFechaHora(res.fecha_checkin_real);
     const { fecha: fechaSalida, hora: horaSalida } = formatearFechaHora(res.fecha_checkout_real);
+    const { fecha: fechaInicioReserva, hora: horaInicioReserva } = formatearFechaHora(res.fecha_checkin_programado);
+    const { fecha: fechaFinReserva, hora: horaFinReserva } = formatearFechaHora(res.fecha_checkout_programado);
     return {
       id: res.id,
       nombre: `${res.usuario_nombres || ''} ${res.usuario_apellidos || ''}`.trim() || `Usuario DNI: ${res.usuario_dni}`,
@@ -318,17 +340,21 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
       habitacion: `${res.habitacion_numero} - ${res.habitacion_tipo}`,
       huespedes: res.numero_huespedes,
       diasHospedaje: res.total_noches,
-      medioPago: res.medio_pago || '', // Si tienes el campo, si no, dejar vacío
+      medioPago: res.medio_pago || '',
       monto: Number(res.precio_noche) || 0,
       montoTotal: Number(res.total_pagar) || 0,
       descuento: Number(res.descuento) || 0,
       estancia: res.fecha_checkout_real ? "finalizada" : "activa",
-      pagado: true, // Asumimos pagado si está en la lista
+      pagado: true,
       fechaEntrada,
       horaEntrada,
       fechaSalida,
       horaSalida,
       usuario: res.usuario_admin || '',
+      fechaInicioReserva,
+      horaInicioReserva,
+      fechaFinReserva,
+      horaFinReserva,
     };
   });
 
@@ -348,11 +374,12 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
 
   // Unificar huéspedes locales y backend (evitar duplicados por id)
   const todosHuespedes = reservasBackend.length > 0
-    ? [...reservasMapeadas, ...huespedes.filter(h => !reservasMapeadas.some(r => r.id === h.id))]
-    : [...huespedes];
+    ? reservasMapeadas
+    : huespedes;
 
-  const huespedesTotales = todosHuespedes.length;
-  const huespedesActivos = todosHuespedes.filter((h) => h.estancia === "activa").length;
+  // Sumar correctamente el total de huéspedes y activos SOLO con la fuente principal
+  const huespedesTotales = todosHuespedes.reduce((total, h) => total + (Number(h.huespedes) || 1), 0);
+  const huespedesActivos = todosHuespedes.filter((h) => h.estancia === "activa").reduce((total, h) => total + (Number(h.huespedes) || 1), 0);
   const ingresoTotal = todosHuespedes.reduce((total, h) => total + ((h.montoTotal || h.monto) * (1 - (h.descuento || 0) / 100)), 0)
 
   return (
@@ -595,21 +622,23 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
         </div>
         <div className="card-content" style={{ padding: "0" }}>
           <div className="table-container">
-            <table className="data-table">
+            <table className="data-table" style={{ minWidth: 1200, tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={{ width: "4%" }}>Sel.</th>
-                  <th style={{ width: "14%" }}>Nombre</th>
-                  <th style={{ width: "8.2%" }}>DNI</th>
-                  <th style={{ width: "8.2%" }}>Habitación</th>
-                  <th style={{ width: "8.2%" }}>Huéspedes</th>
-                  <th style={{ width: "8.2%" }}>Días</th>
-                  <th style={{ width: "8.2%" }}>Pago</th>
-                  <th style={{ width: "8.2%" }}>Monto Total</th>
-                  <th style={{ width: "8.2%" }}>Estado</th>
-                  <th style={{ width: "8.2%" }}>Entrada</th>
-                  <th style={{ width: "8.2%" }}>Salida</th>
-                  <th style={{ width: "8.2%" }}>Administrador</th>
+                  <th style={{ width: "4%", minWidth: 50 }}>Sel.</th>
+                  <th style={{ width: "13%", minWidth: 120 }}>Nombre</th>
+                  <th style={{ width: "8%", minWidth: 90 }}>DNI</th>
+                  <th style={{ width: "10%", minWidth: 110 }}>Habitación</th>
+                  <th style={{ width: "7%", minWidth: 80 }}>Huéspedes</th>
+                  <th style={{ width: "7%", minWidth: 80 }}>Días</th>
+                  <th style={{ width: "8%", minWidth: 90 }}>Pago</th>
+                  <th style={{ width: "10%", minWidth: 110 }}>Monto Total</th>
+                  <th style={{ width: "8%", minWidth: 90 }}>Estado</th>
+                  <th style={{ width: "10%", minWidth: 120 }}>Entrada</th>
+                  <th style={{ width: "10%", minWidth: 120 }}>Salida</th>
+                  <th style={{ width: "10%", minWidth: 120 }}>Administrador</th>
+                  <th style={{ width: "13%", minWidth: 140, whiteSpace: 'normal' }}>Fecha inicio de reserva</th>
+                  <th style={{ width: "13%", minWidth: 140, whiteSpace: 'normal' }}>Fecha fin de reserva</th>
                 </tr>
               </thead>
               <tbody>
@@ -656,9 +685,9 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
                     </td>
                     <td style={{ textTransform: "capitalize", color: "#1a202c" }}>{huesped.medioPago}</td>
                     <td style={{ color: "#1a202c" }}>
-                      <div>S/ {((huesped.montoTotal || huesped.monto) * (1 - huesped.descuento / 100)).toFixed(2)}</div>
+                      <div>S/ {((huesped.montoTotal || huesped.monto)).toFixed(2)}</div>
                       {huesped.descuento > 0 && (
-                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>-{huesped.descuento}% desc.</div>
+                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>-{(huesped.montoTotal+huesped.descuento) / huesped.descuento}% desc.</div>
                       )}
                     </td>
                     <td>
@@ -691,6 +720,26 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
                     </td>
                     <td style={{ fontWeight: "500", color: "#1a202c" }}>
                       {huesped.usuario}
+                    </td>
+                    <td style={{ color: "#1a202c" }}>
+                      {huesped.fechaInicioReserva ? (
+                        <div>
+                          <div style={{ fontSize: "0.75rem", fontWeight: 500 }}>📅 {huesped.fechaInicioReserva}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>🕐 {huesped.horaInicioReserva}</div>
+                        </div>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>-</span>
+                      )}
+                    </td>
+                    <td style={{ color: "#1a202c" }}>
+                      {huesped.fechaFinReserva ? (
+                        <div>
+                          <div style={{ fontSize: "0.75rem", fontWeight: 500 }}>📅 {huesped.fechaFinReserva}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>🕐 {huesped.horaFinReserva}</div>
+                        </div>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>-</span>
+                      )}
                     </td>
                   </tr>
                 ))}

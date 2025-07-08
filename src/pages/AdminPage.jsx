@@ -3,7 +3,6 @@ import Header from "../components/HeaderAdmin"
 import Hospedaje from "./Hospedaje"
 import Reservas from "./Reservas"
 import Habitaciones from "./Habitaciones"
-import Configuracion from "./Configuracion"
 import axiosInstance from "@/libs/axiosInstance"
 import "../styles/global.css"
 
@@ -13,28 +12,37 @@ const App = () => {
   // Estado de habitaciones, ahora se llenará desde el backend
   const [habitacionesData, setHabitacionesData] = useState({})
 
-  // Cargar habitaciones desde el backend al montar el componente
-  useEffect(() => {
-    const fetchHabitaciones = async () => {
-      try {
-        const response = await axiosInstance.get("http://localhost:8000/api/habitaciones/listar/")
-        // Convierte el array a un objeto indexado por número o código de habitación
-        const habitacionesObj = {}
-        response.data.forEach((hab) => {
-          habitacionesObj[hab.numero_habitacion || hab.codigo] = {
-            numero: hab.numero_habitacion,
-            tipo: hab.tipo_nombre,
-            estado: hab.estado_nombre?.toLowerCase() || "desconocido",
-            ...hab,
-          }
-        })
-        setHabitacionesData(habitacionesObj)
-      } catch (error) {
-        console.error("Error al obtener habitaciones:", error)
-      }
+  // Función para cargar habitaciones desde el backend
+  const fetchHabitaciones = async () => {
+    try {
+      const response = await axiosInstance.get("http://localhost:8000/api/habitaciones/listar/")
+      // Convierte el array a un objeto indexado por número o código de habitación
+      const habitacionesObj = {}
+      response.data.forEach((hab) => {
+        habitacionesObj[hab.numero_habitacion || hab.codigo] = {
+          numero: hab.numero_habitacion,
+          tipo: hab.tipo_nombre,
+          estado: hab.estado_nombre?.toLowerCase() || "desconocido",
+          ...hab,
+        }
+      })
+      setHabitacionesData(habitacionesObj)
+    } catch (error) {
+      console.error("Error al obtener habitaciones:", error)
     }
+  }
+
+  // Cargar habitaciones al montar el componente
+  useEffect(() => {
     fetchHabitaciones()
   }, [])
+
+  // Refrescar habitaciones cuando se navega a la página de habitaciones
+  useEffect(() => {
+    if (currentPage === "habitaciones") {
+      fetchHabitaciones()
+    }
+  }, [currentPage])
 
   // Obtener precios dinámicamente desde habitacionesData
   const roomPrices = Object.values(habitacionesData).reduce((acc, hab) => {
@@ -153,7 +161,6 @@ const App = () => {
   const programarRenovacionesAutomaticas = (reserva, montoPorDia) => {
     // En una implementación real, esto se haría con un sistema de cron jobs o similar
     // Por ahora, solo registramos que se debe hacer
-    console.log(`Programando ${reserva.dias - 1} renovaciones automáticas para reserva ${reserva.id}`)
   }
 
   const renderCurrentPage = () => {
@@ -178,9 +185,7 @@ const App = () => {
           />
         )
       case "habitaciones":
-        return <Habitaciones habitacionesData={habitacionesData} onActualizarEstado={actualizarEstadoHabitacion} />
-      case "configuracion":
-        return <Configuracion />
+        return <Habitaciones habitacionesData={habitacionesData} onActualizarEstado={actualizarEstadoHabitacion} fetchHabitaciones={fetchHabitaciones} />
       default:
         return <Hospedaje />
     }

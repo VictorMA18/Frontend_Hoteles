@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react"
+import axiosInstance from "@/libs/axiosInstance"
 
-const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas }) => {
+const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetchHabitaciones, fetchReservas }) => {
   const [reservas, setReservas] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
+  const [checkedInIds, setCheckedInIds] = useState(new Set()) // Persistir IDs con check-in realizado
   const [form, setForm] = useState({
     nombres: "",
     apellidos: "",
@@ -25,36 +27,175 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas }) =>
     ? Object.values(habitacionesData).filter((habitacion) => habitacion.estado === "disponible")
     : []
 
-const handleConfirmarPago = () => {
+  // Obtener reservas del backend al cargar o refrescar
+  const fetchReservasLocal = async () => {
+    try {
+      const res = await axiosInstance.get("http://localhost:8000/api/reservas/todas/")
+      
+      // Mapeo para adaptar los datos del backend a la estructura de la tabla
+      const estadoPorId = {
+        1: "Pendiente",
+        2: "Confirmada", 
+        3: "Cancelada",
+        4: "Finalizada",
+      }
+      const reservasMapeadas = res.data.map((r) => {
+        // Buscar si esta reserva ya existe en el estado local para preservar flags temporales
+        const reservaExistente = reservas.find(reservaLocal => reservaLocal.id === r.id)
+        const hasCheckedIn = checkedInIds.has(r.id)
+        
+        return {
+          id: r.id,
+          nombres: `${r.usuario_nombres || ''} ${r.usuario_apellidos || ''}`.trim() || `Usuario DNI: ${r.usuario_dni}`,
+          dni: r.usuario_dni,
+          habitacion: r.habitacion_numero || r.habitacion,
+          huespedes: r.numero_huespedes || r.huespedes || 1,
+          medioPago: r.medio_pago || '',
+          pago: r.pagado || r.pago || false,
+          monto: Number(r.precio_noche) || 0,
+          montoTotal: Number(r.total_pagar) || Number(r.monto_total) || 0,
+          descuento: Number(r.descuento) || 0,
+          entrada: r.fecha_checkin_programado ? r.fecha_checkin_programado.split('T')[0] : r.entrada || '',
+          salida: r.fecha_checkout_programado ? r.fecha_checkout_programado.split('T')[0] : r.salida || '',
+          dias: r.total_noches || r.dias || 1,
+          estado: estadoPorId[r.id_estado_reserva] || r.estado_nombre || r.estado || 'En espera',
+          fechaCreacion: r.fecha_creacion ? new Date(r.fecha_creacion).toLocaleDateString("es-PE") : '',
+          // Mantener flag de check-in hasta que la habitación esté realmente ocupada
+          checkedIn: hasCheckedIn && !r.fecha_checkin_real,
+          // También almacenar si tiene check-in real del backend
+          hasRealCheckin: !!r.fecha_checkin_real,
+        }
+      })
+      
+      // Limpiar IDs de check-in temporal para reservas que ya tienen check-in real
+      const newCheckedInIds = new Set(checkedInIds)
+      res.data.forEach(r => {
+        if (r.fecha_checkin_real && checkedInIds.has(r.id)) {
+          newCheckedInIds.delete(r.id)
+        }
+      })
+      setCheckedInIds(newCheckedInIds)
+      setReservas(reservasMapeadas)
+    } catch (err) {
+      setReservas([])
+    }
+  }
+
+  useEffect(() => {
+    fetchReservasLocal()
+  }, [])
+
+  // Acción de Check-in
+  const handleCheckIn = async () => {
+    if (selectedIds.length === 0) {
+      showToast("Selecciona al menos una reserva para hacer check-in", "error")
+      return
+    }
+    let token = ""
+    try {
+      token = localStorage.getItem("access") || ""
+    } catch {}
+    const headers = { "Content-Type": "application/json" }
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    let success = 0
+    const idsExitosos = []
+    for (const reservaId of selectedIds) {
+      try {
+        const res = await axiosInstance.post(`http://localhost:8000/api/reservas/${reservaId}/check-in/`)
+        success++
+        idsExitosos.push(reservaId)
+      } catch {
+        // Error silencioso, el contador de success se encarga del manejo
+      }
+    }
+    if (success > 0) {
+      showToast(`${success} check-in(s) realizado(s)`)
+      
+      // Agregar IDs exitosos al Set persistente de check-ins
+      const newCheckedInIds = new Set(checkedInIds)
+      idsExitosos.forEach(id => newCheckedInIds.add(id))
+      setCheckedInIds(newCheckedInIds)
+      
+      // Actualizar inmediatamente las reservas que hicieron check-in para mostrar como "ocupadas"
+      setReservas((prevReservas) =>
+        prevReservas.map((reserva) => {
+          if (idsExitosos.includes(reserva.id)) {
+            return { ...reserva, checkedIn: true } // Agregar flag temporal para identificar check-in
+          }
+          return reserva
+        })
+      )
+      
+      // Dar tiempo al backend para procesar el cambio antes de refrescar
+      setTimeout(async () => {
+        // Refrescar habitaciones primero para asegurar que se actualicen los estados
+        if (typeof fetchHabitaciones === "function") await fetchHabitaciones()
+        
+        // Luego refrescar las reservas
+        await fetchReservasLocal()
+        
+        // Finalmente refrescar reservas globales del padre
+        if (typeof fetchReservas === "function") await fetchReservas()
+      }, 1000) // 1 segundo de delay
+    } else {
+      showToast("No se pudo realizar el check-in", "error")
+    }
+    setSelectedIds([])
+  }
+
+  // Acción de Confirmar Pago
+  const handleConfirmarPago = async () => {
     if (selectedIds.length === 0) {
       showToast("Selecciona al menos una reserva para confirmar el pago", "error")
       return
     }
+    let success = 0
+    for (const reservaId of selectedIds) {
+      try {
+        await axiosInstance.post(`http://localhost:8000/api/reservas/${reservaId}/confirmar/`)
+        success++
+      } catch (err) {
+        console.error(`Error al confirmar pago para reserva ${reservaId}:`, err)
+      }
+    }
+    if (success > 0) {
+      showToast(`${success} pago(s) confirmado(s)`)
+      fetchReservasLocal()
+      // Refrescar habitaciones si la función está disponible
+      if (typeof fetchHabitaciones === "function") fetchHabitaciones()
+      // Refrescar reservas globales del padre si la función está disponible
+      if (typeof fetchReservas === "function") fetchReservas()
+    } else {
+      showToast("No se pudo confirmar el pago", "error")
+    }
+    setSelectedIds([])
+  }
 
-    const reservasNoPagadas = reservas.filter((r) => selectedIds.includes(r.id) && !r.pago)
-
-    if (reservasNoPagadas.length === 0) {
-      showToast("Las reservas seleccionadas ya están pagadas", "error")
+  // Acción de Cancelar Reserva
+  const handleCancelarReservas = async () => {
+    if (selectedIds.length === 0) {
+      showToast("Selecciona al menos una reserva para cancelar", "error")
       return
     }
-
-    // Actualizar estado de pago y cambiar habitaciones a reservado
-    if (setReservas) {
-      setReservas((prev) =>
-        prev.map((reserva) => {
-          if (selectedIds.includes(reserva.id) && !reserva.pago) {
-            // Cambiar habitación a estado "reservado"
-            if (onActualizarEstadoHabitacion) {
-              onActualizarEstadoHabitacion(reserva.habitacion, "reservado")
-            }
-            return { ...reserva, pago: true }
-          }
-          return reserva
-        }),
-      )
+    let success = 0
+    for (const reservaId of selectedIds) {
+      try {
+        await axiosInstance.post(`http://localhost:8000/api/reservas/${reservaId}/cancelar/`)
+        success++
+      } catch (err) {
+        console.error(`Error al cancelar reserva ${reservaId}:`, err)
+      }
     }
-
-    showToast(`${reservasNoPagadas.length} pago(s) confirmado(s)`)
+    if (success > 0) {
+      showToast(`${success} reserva(s) cancelada(s)`)
+      fetchReservasLocal()
+      // Refrescar habitaciones si la función está disponible
+      if (typeof fetchHabitaciones === "function") fetchHabitaciones()
+      // Refrescar reservas globales del padre si la función está disponible
+      if (typeof fetchReservas === "function") fetchReservas()
+    } else {
+      showToast("No se pudo cancelar la reserva", "error")
+    }
     setSelectedIds([])
   }
 
@@ -176,28 +317,19 @@ const handleConfirmarPago = () => {
       payload.apellidos = form.apellidos.trim()
     }
     // Mostrar en consola antes de enviar
-    console.log("[RESERVA PENDIENTE] Payload a enviar:", payload)
-    // Obtener token de autenticación si existe
-    let token = ""
+    // console.log("[RESERVA PENDIENTE] Payload a enviar:", payload)
+    
     try {
-      token = localStorage.getItem("access") || ""
-    } catch {}
-    const headers = { "Content-Type": "application/json" }
-    if (token) headers["Authorization"] = `Bearer ${token}`
-    try {
-      const res = await fetch("http://localhost:8000/api/reservas/hospedaje-presencial-pendiente/", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      })
-      if (res.ok) {
-        showToast("Reserva pendiente registrada correctamente")
-      } else {
-        const error = await res.json().catch(() => ({}))
-        showToast(error.detail || "Error al registrar reserva", "error")
-      }
+      const res = await axiosInstance.post("http://localhost:8000/api/reservas/hospedaje-presencial-pendiente/", payload)
+      showToast("Reserva pendiente registrada correctamente")
+      // Refrescar reservas locales y globales, y habitaciones
+      fetchReservasLocal()
+      if (typeof fetchHabitaciones === "function") fetchHabitaciones()
+      if (typeof fetchReservas === "function") fetchReservas()
     } catch (err) {
-      showToast("Error de red al registrar reserva", "error")
+      console.error("Error al registrar reserva:", err)
+      const errorMsg = err.response?.data?.detail || "Error al registrar reserva"
+      showToast(errorMsg, "error")
     }
     // --- FIN ENVÍO AL ENDPOINT ---
     const nuevaReserva = {
@@ -242,52 +374,52 @@ const handleConfirmarPago = () => {
     setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((selectedId) => selectedId !== id)))
   }
 
-  const handleConfirmarReservas = () => {
-    if (selectedIds.length === 0) {
-      showToast("Selecciona al menos una reserva para confirmar", "error")
-      return
+  // Modificar getEstadoColor para considerar el estado de la habitación si la reserva está confirmada
+  const getEstadoColor = (estado, habitacionNum, reserva) => {
+    // Primero verificar estados finales que no deben cambiar de color
+    if (estado === "Finalizada") {
+      return { background: "#e0e7ef", color: "#334155" } // Gris para finalizada
     }
-
-    const reservasAConfirmar = reservas.filter((r) => selectedIds.includes(r.id))
-
-    // Actualizar estado de reservas a confirmada
-    setReservas((prev) =>
-      prev.map((reserva) => (selectedIds.includes(reserva.id) ? { ...reserva, estado: "Confirmada" } : reserva)),
-    )
-
-    // Pasar reservas confirmadas a Hospedaje
-    if (onConfirmarReservas) {
-      onConfirmarReservas(reservasAConfirmar)
+    if (estado === "Cancelada") {
+      return { background: "#fef2f2", color: "#dc2626" } // Rojo para cancelada
     }
-
-    showToast(`${selectedIds.length} reserva(s) confirmada(s)`)
-    setSelectedIds([])
-  }
-
-  const handleCancelarReservas = () => {
-    if (selectedIds.length === 0) {
-      showToast("Selecciona al menos una reserva para cancelar", "error")
-      return
+    
+    // Si la reserva tiene check-in real del backend, mostrar verde (solo para estados activos)
+    if (reserva?.hasRealCheckin && estado !== "Finalizada" && estado !== "Cancelada") {
+      return { background: "#dcfce7", color: "#166534" } // Verde para check-in confirmado por backend
     }
-
-    setReservas((prev) =>
-      prev.map((reserva) => (selectedIds.includes(reserva.id) ? { ...reserva, estado: "Cancelada" } : reserva)),
-    )
-
-    showToast(`${selectedIds.length} reserva(s) cancelada(s)`)
-    setSelectedIds([])
-  }
-
-  const getEstadoColor = (estado) => {
+    
+    // Si la reserva tiene el flag de check-in temporal, mostrar verde (solo para estados activos)
+    if ((reserva?.checkedIn || checkedInIds.has(reserva?.id)) && estado !== "Finalizada" && estado !== "Cancelada") {
+      return { background: "#dcfce7", color: "#166534" } // Verde para check-in realizado
+    }
+    
+    // Si la reserva está confirmada, revisa el estado de la habitación
+    if (estado === "Confirmada" && habitacionesData) {
+      const hab = Object.values(habitacionesData).find(
+        (h) => h.numero === habitacionNum || h.numero === String(habitacionNum)
+      )
+      
+      if (hab) {
+        if (hab.estado === "ocupada") {
+          return { background: "#dcfce7", color: "#166534" } // Verde para ocupada (check-in realizado)
+        }
+        if (hab.estado === "reservada") {
+          return { background: "#ede9fe", color: "#7c3aed" } // Morado para reservada (pago confirmado)
+        }
+      }
+      // Si no encuentra la habitación pero está confirmada, asumir reservada
+      return { background: "#ede9fe", color: "#7c3aed" } // Morado por defecto para confirmada
+    }
+    
+    // Colores por estado de reserva restantes
     switch (estado) {
       case "Confirmada":
-        return { background: "#dcfce7", color: "#166534" }
-      case "Cancelada":
-        return { background: "#fef2f2", color: "#dc2626" }
-      case "En espera":
-        return { background: "#fef3c7", color: "#92400e" }
+        return { background: "#ede9fe", color: "#7c3aed" } // Morado por defecto para confirmada
+      case "Pendiente":
+        return { background: "#fef3c7", color: "#92400e" } // Amarillo para pendiente
       default:
-        return { background: "#f3f4f6", color: "#6b7280" }
+        return { background: "#f3f4f6", color: "#6b7280" } // Gris por defecto
     }
   }
 
@@ -491,7 +623,7 @@ const handleConfirmarPago = () => {
               <button
                 type="button"
                 className="btn btn-success"
-                onClick={handleConfirmarReservas}
+                onClick={handleCheckIn}
                 disabled={selectedIds.length === 0}
                 style={{ backgroundColor: "#10b981", borderColor: "#10b981", color: "white"}}
               >
@@ -684,7 +816,7 @@ const handleConfirmarPago = () => {
                   <td style={{ padding: "0.75rem" }}>
                     <div>S/ {r.montoTotal.toFixed(2)}</div>
                     <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                      {r.dias} noche(s) - {r.descuento}% desc.
+                      {r.dias} noche(s) - {(r.montoTotal+r.descuento) / r.descuento}% desc.
                     </div>
                   </td>
                   <td style={{ padding: "0.75rem" }}>
@@ -694,7 +826,7 @@ const handleConfirmarPago = () => {
                         borderRadius: "12px",
                         fontSize: "0.75rem",
                         fontWeight: "500",
-                        ...getEstadoColor(r.estado),
+                        ...getEstadoColor(r.estado, r.habitacion, r),
                       }}
                     >
                       {r.estado}
