@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react"
 import axiosInstance from "@/libs/axiosInstance"
+import { filtrarPorCampos } from "@/libs/utils"
 
 const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetchHabitaciones, fetchReservas }) => {
   const [reservas, setReservas] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
+  const [searchTerm, setSearchTerm] = useState("")
   const [checkedInIds, setCheckedInIds] = useState(new Set()) // Persistir IDs con check-in realizado
   const [form, setForm] = useState({
     nombres: "",
@@ -12,7 +14,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
     habitacion: "",
     huespedes: "1",
     medioPago: "",
-    pago: false,
+    pago: "",
     monto: "",
     montoTotal: "",
     descuento: "",
@@ -27,12 +29,44 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
     ? Object.values(habitacionesData).filter((habitacion) => habitacion.estado === "disponible")
     : []
 
+  // Función para formatear fecha y hora desde string ISO (igual que en Hospedaje)
+  function formatearFecha(fechaIso) {
+    if (!fechaIso) return "";
+    const fechaObj = new Date(fechaIso);
+    return fechaObj.toLocaleDateString("es-PE");
+  }
+  function formatearFechaHora(fechaIso) {
+    if (!fechaIso) return { fecha: "", hora: "" };
+    const fechaObj = new Date(fechaIso);
+    const fecha = fechaObj.toLocaleDateString("es-PE");
+    const hora = fechaObj.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+    return { fecha, hora };
+  }
+
   // Obtener reservas del backend al cargar o refrescar
   const fetchReservasLocal = async () => {
     try {
       const res = await axiosInstance.get("http://localhost:8000/api/reservas/todas/")
-      
-      // Mapeo para adaptar los datos del backend a la estructura de la tabla
+      // --- Adaptar lógica de descuento histórico igual que en hospedaje ---
+      // Agrupar reservas por usuario (DNI)
+      const reservasPorUsuario = {}
+      res.data.forEach((r) => {
+        if (!reservasPorUsuario[r.usuario_dni]) reservasPorUsuario[r.usuario_dni] = []
+        reservasPorUsuario[r.usuario_dni].push(r)
+      })
+      // Para cada usuario, ordenar reservas por fecha de creación y simular el conteo de visitas
+      Object.values(reservasPorUsuario).forEach((reservasUsuario) => {
+        reservasUsuario.sort((a, b) => new Date(a.fecha_creacion) - new Date(b.fecha_creacion))
+        let visitasAcumuladas = 0
+        reservasUsuario.forEach((r) => {
+          // Si la reserva está finalizada o tiene check-in real, cuenta como visita hospedada
+          const esHospedada = r.id_estado_reserva === 4 || !!r.fecha_checkin_real
+          // Guardar el número de visitas acumuladas ANTES de esta reserva
+          r.visitas_al_momento = visitasAcumuladas
+          if (esHospedada) visitasAcumuladas++
+        })
+      })
+      // Mapear reservas usando visitas_al_momento para decidir el descuento y adaptar estructura igual que Hospedaje
       const estadoPorId = {
         1: "Pendiente",
         2: "Confirmada", 
@@ -40,10 +74,18 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
         4: "Finalizada",
       }
       const reservasMapeadas = res.data.map((r) => {
-        // Buscar si esta reserva ya existe en el estado local para preservar flags temporales
         const reservaExistente = reservas.find(reservaLocal => reservaLocal.id === r.id)
         const hasCheckedIn = checkedInIds.has(r.id)
-        
+        const descuento = (r.visitas_al_momento >= 5) ? 10 : 0
+        const dias = r.total_noches || r.dias || 1
+        const montoNoche = Number(r.precio_noche) || 0
+        const montoTotal = r.total_pagar !== undefined && r.total_pagar !== null
+          ? Number(r.total_pagar)
+          : (montoNoche * dias) * (1 - descuento / 100)
+        const { fecha: fechaEntrada, hora: horaEntrada } = formatearFechaHora(r.fecha_checkin_real)
+        const { fecha: fechaSalida, hora: horaSalida } = formatearFechaHora(r.fecha_checkout_real)
+        const { fecha: fechaInicioReserva, hora: horaInicioReserva } = formatearFechaHora(r.fecha_checkin_programado)
+        const { fecha: fechaFinReserva, hora: horaFinReserva } = formatearFechaHora(r.fecha_checkout_programado)
         return {
           id: r.id,
           nombres: `${r.usuario_nombres || ''} ${r.usuario_apellidos || ''}`.trim() || `Usuario DNI: ${r.usuario_dni}`,
@@ -51,22 +93,29 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
           habitacion: r.habitacion_numero || r.habitacion,
           huespedes: r.numero_huespedes || r.huespedes || 1,
           medioPago: r.medio_pago || '',
-          pago: r.pagado || r.pago || false,
-          monto: Number(r.precio_noche) || 0,
-          montoTotal: Number(r.total_pagar) || Number(r.monto_total) || 0,
-          descuento: Number(r.descuento) || 0,
-          entrada: r.fecha_checkin_programado ? r.fecha_checkin_programado.split('T')[0] : r.entrada || '',
-          salida: r.fecha_checkout_programado ? r.fecha_checkout_programado.split('T')[0] : r.salida || '',
-          dias: r.total_noches || r.dias || 1,
+          pago: r.pago || '',
+          monto: montoNoche,
+          montoTotal: montoTotal,
+          descuento: r.descuento,
+          entrada: fechaInicioReserva || r.entrada || '',
+          salida: fechaFinReserva || r.salida || '',
+          dias: dias,
           estado: estadoPorId[r.id_estado_reserva] || r.estado_nombre || r.estado || 'En espera',
           fechaCreacion: r.fecha_creacion ? new Date(r.fecha_creacion).toLocaleDateString("es-PE") : '',
-          // Mantener flag de check-in hasta que la habitación esté realmente ocupada
+          total_visitas_hospedadas: r.visitas_al_momento,
           checkedIn: hasCheckedIn && !r.fecha_checkin_real,
-          // También almacenar si tiene check-in real del backend
           hasRealCheckin: !!r.fecha_checkin_real,
+          usuario: r.usuario_admin || '',
+          fechaEntrada,
+          horaEntrada,
+          fechaSalida,
+          horaSalida,
+          fechaInicioReserva,
+          horaInicioReserva,
+          fechaFinReserva,
+          horaFinReserva,
         }
       })
-      
       // Limpiar IDs de check-in temporal para reservas que ya tienen check-in real
       const newCheckedInIds = new Set(checkedInIds)
       res.data.forEach(r => {
@@ -227,6 +276,42 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
     }
   }, [form.monto, form.entrada, form.salida, form.descuento])
 
+  // Efecto para consultar visitas hospedadas y aplicar descuento automático
+  useEffect(() => {
+    const fetchVisitasYDescuento = async () => {
+      if (form.dni && form.dni.length === 8 && /^\d{8}$/.test(form.dni)) {
+        try {
+          const res = await axiosInstance.get(`http://localhost:8000/api/usuarios/${form.dni}/visitas-hospedadas/`)
+          const totalVisitas = res.data?.total_visitas_hospedadas || 0
+          // Si tiene 5 visitas, aplicar 10% de descuento
+          if (totalVisitas >= 5) {
+            setForm((prev) => ({
+              ...prev,
+              descuento: "10"
+            }))
+          } else {
+            setForm((prev) => ({
+              ...prev,
+              descuento: "0"
+            }))
+          }
+        } catch (err) {
+          setForm((prev) => ({
+            ...prev,
+            descuento: "0"
+          }))
+        }
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          descuento: "0"
+        }))
+      }
+    }
+    fetchVisitasYDescuento()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.dni])
+
   const handleInputChange = (field, value) => {
     setForm((prev) => {
       const newForm = { ...prev, [field]: value }
@@ -255,8 +340,15 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
     }, 3000)
   }
 
+  const MEDIOS_PAGO_VALIDOS = ["efectivo", "tarjeta", "yape", "plin"];
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    // Validar medio de pago obligatorio y permitido
+    if (!form.medioPago || !MEDIOS_PAGO_VALIDOS.includes(form.medioPago)) {
+      showToast("Por favor selecciona un medio de pago válido (efectivo, tarjeta, yape o plin)", "error")
+      return
+    }
     if (
       (!usuarioExistente && (!form.nombres.trim() || !form.apellidos.trim())) ||
       !form.dni.trim() ||
@@ -311,6 +403,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
       fecha_checkin_programado,
       fecha_checkout_programado,
       dni_admin,
+      pago: form.medioPago, // Enviar el campo pago igual que en Hospedaje
     }
     if (!usuarioExistente) {
       payload.nombres = form.nombres.trim()
@@ -339,7 +432,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
       habitacion: form.habitacion.trim(),
       huespedes: Number.parseInt(form.huespedes),
       medioPago: form.medioPago,
-      pago: Boolean(form.pago),
+      pago: form.medioPago,
       monto: Number.parseFloat(form.monto),
       montoTotal: Number.parseFloat(form.montoTotal),
       descuento: Number.parseFloat(form.descuento),
@@ -358,7 +451,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
       habitacion: "",
       huespedes: "1",
       medioPago: "",
-      pago: false,
+      pago: "",
       monto: "",
       montoTotal: "",
       descuento: "",
@@ -422,6 +515,9 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
         return { background: "#f3f4f6", color: "#6b7280" } // Gris por defecto
     }
   }
+
+  // --- FILTRADO DE RESERVAS REUTILIZABLE ---
+  const filteredReservas = filtrarPorCampos(reservas, searchTerm, ["nombres", "dni", "habitacion"]);
 
   return (
     <div
@@ -554,7 +650,6 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
                 <option value="">Selecciona método</option>
                 <option value="efectivo">Efectivo</option>
                 <option value="tarjeta">Tarjeta</option>
-                <option value="transferencia">Transferencia</option>
                 <option value="yape">Yape</option>
                 <option value="plin">Plin</option>
               </select>
@@ -610,8 +705,8 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
                 style={{ backgroundColor: "#f0f9ff", cursor: "not-allowed", fontWeight: "600" }}
               />
               {form.entrada && form.salida && (
-                <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                  {calcularDias(form.entrada, form.salida)} noche(s) con {form.descuento}% descuento
+                <div style={{ fontSize: "0.75rem", color: form.descuento > 0 ? "#059669" : "#6b7280", marginTop: "0.25rem" }}>
+                  {calcularDias(form.entrada, form.salida)} noche(s) {form.descuento > 0 ? `con ${form.descuento}% descuento` : "sin descuento"}
                 </div>
               )}
             </div>
@@ -657,194 +752,151 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
 
       {/* Reservations Table */}
       <div className="card">
-        <div className="card-header">
+        <div className="card-header card-header-flex">
           <h2>Lista de Reservas</h2>
+          <div className="search-container">
+            <span className="search-icon">🔍</span>
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Buscar por nombre, DNI o habitación..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
-        <div className="card-content" style={{ padding: "0", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ padding: "0.75rem", width: "4%", fontWeight: "600", borderBottom: "1px solid #e5e7eb" }}>
-                  Sel.
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Nombre
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  DNI
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "center",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Habitación
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "center",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Huéspedes
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Medio de Pago
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Pago
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Monto Total
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Estado
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Entrada
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  Salida
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {reservas.map((r) => (
-                <tr key={r.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                  <td style={{ padding: "0.75rem" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(r.id)}
-                      onChange={(e) => handleSelectReserva(r.id, e.target.checked)}
-                      disabled={r.estado === "Cancelada"}
-                      style={{ cursor: r.estado === "Cancelada" ? "not-allowed" : "pointer" }}
-                    />
-                  </td>
-                  <td style={{ padding: "0.75rem", fontWeight: "500" }}>{r.nombres}</td>
-                  <td style={{ padding: "0.75rem" }}>{r.dni}</td>
-                  <td style={{ padding: "0.75rem", textAlign: "center" }}>{r.habitacion}</td>
-                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                    <span
-                      style={{
-                        background: "#f0f9ff",
-                        color: "#0369a1",
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "12px",
-                        fontSize: "0.75rem",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {r.huespedes} 👥
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.75rem", textTransform: "capitalize" }}>{r.medioPago}</td>
-                  <td style={{ padding: "0.75rem" }}>
-                    <span
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "12px",
-                        fontSize: "0.75rem",
-                        fontWeight: "500",
-                        background: r.pago ? "#dcfce7" : "#fef3c7",
-                        color: r.pago ? "#166534" : "#92400e",
-                      }}
-                    >
-                      {r.pago ? "Sí" : "No"}
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.75rem" }}>
-                    <div>S/ {r.montoTotal.toFixed(2)}</div>
-                    <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                      {r.dias} noche(s) - {(r.montoTotal+r.descuento) / r.descuento}% desc.
-                    </div>
-                  </td>
-                  <td style={{ padding: "0.75rem" }}>
-                    <span
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "12px",
-                        fontSize: "0.75rem",
-                        fontWeight: "500",
-                        ...getEstadoColor(r.estado, r.habitacion, r),
-                      }}
-                    >
-                      {r.estado}
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.75rem" }}>{r.entrada}</td>
-                  <td style={{ padding: "0.75rem" }}>{r.salida}</td>
-                </tr>
-              ))}
-              {reservas.length === 0 && (
+        <div className="card-content" style={{ padding: "0" }}>
+          <div className="table-container">
+            <table className="data-table" style={{ minWidth: 1200, tableLayout: 'fixed' }}>
+              <thead>
                 <tr>
-                  <td colSpan="10" style={{ textAlign: "center", padding: "2rem", color: "#6b7280" }}>
-                    No hay reservas activas
-                  </td>
+                  <th style={{ width: "4%", minWidth: 50 }}>Sel.</th>
+                  <th style={{ width: "13%", minWidth: 120 }}>Nombre</th>
+                  <th style={{ width: "8%", minWidth: 90 }}>DNI</th>
+                  <th style={{ width: "10%", minWidth: 110 }}>Habitación</th>
+                  <th style={{ width: "7%", minWidth: 80 }}>Huéspedes</th>
+                  <th style={{ width: "7%", minWidth: 80 }}>Noches</th>
+                  <th style={{ width: "8%", minWidth: 90 }}>Pago</th>
+                  <th style={{ width: "10%", minWidth: 110 }}>Monto Total</th>
+                  <th style={{ width: "8%", minWidth: 90 }}>Estado</th>
+                  <th style={{ width: "10%", minWidth: 120 }}>Entrada</th>
+                  <th style={{ width: "10%", minWidth: 120 }}>Salida</th>
+                  <th style={{ width: "10%", minWidth: 120 }}>Administrador</th>
+                  <th style={{ width: "13%", minWidth: 140, whiteSpace: 'normal' }}>Fecha inicio de reserva</th>
+                  <th style={{ width: "13%", minWidth: 140, whiteSpace: 'normal' }}>Fecha fin de reserva</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredReservas.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(r.id)}
+                        onChange={(e) => handleSelectReserva(r.id, e.target.checked)}
+                        disabled={r.estado === "Cancelada"}
+                      />
+                    </td>
+                    <td style={{ fontWeight: "500", color: "#1a202c" }}>{r.nombres}</td>
+                    <td style={{ color: "#1a202c" }}>{r.dni}</td>
+                    <td style={{ color: "#1a202c", textAlign: "left" }}>{r.habitacion}</td>
+                    <td style={{ color: "#1a202c", textAlign: "left" }}>
+                      <span
+                        style={{
+                          background: "#f0f9ff",
+                          color: "#0369a1",
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "12px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {r.huespedes || 1} 👥
+                      </span>
+                    </td>
+                    <td style={{ color: "#1a202c", textAlign: "left" }}>
+                      <span
+                        style={{
+                          background: "#fef3c7",
+                          color: "#92400e",
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "12px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {r.dias || 1} 📅
+                      </span>
+                    </td>
+                    <td style={{ textTransform: "capitalize", color: "#1a202c" }}>{r.pago}</td>
+                    <td style={{ color: "#1a202c" }}>
+                      <div>S/ {((r.montoTotal || r.monto)).toFixed(2)}</div>
+                      {r.descuento > 0 && (
+                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>-{(r.montoTotal+r.descuento) / r.descuento}% desc.</div>
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "12px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                          ...getEstadoColor(r.estado, r.habitacion, r),
+                        }}
+                      >
+                        {r.estado}
+                      </span>
+                    </td>
+                    <td style={{ color: "#1a202c" }}>
+                      <div style={{ fontSize: "0.75rem" }}>📅 {r.fechaEntrada}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>🕐 {r.horaEntrada}</div>
+                    </td>
+                    <td style={{ color: "#1a202c" }}>
+                      {r.fechaSalida ? (
+                        <div>
+                          <div style={{ fontSize: "0.75rem" }}>📅 {r.fechaSalida}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>🕐 {r.horaSalida}</div>
+                        </div>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>-</span>
+                      )}
+                    </td>
+                    <td style={{ fontWeight: "500", color: "#1a202c" }}>{r.usuario || '-'}</td>
+                    <td style={{ color: "#1a202c" }}>
+                      {r.fechaInicioReserva ? (
+                        <div>
+                          <div style={{ fontSize: "0.75rem", fontWeight: 500 }}>📅 {r.fechaInicioReserva}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>🕐 {r.horaInicioReserva}</div>
+                        </div>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>-</span>
+                      )}
+                    </td>
+                    <td style={{ color: "#1a202c" }}>
+                      {r.fechaFinReserva ? (
+                        <div>
+                          <div style={{ fontSize: "0.75rem", fontWeight: 500 }}>📅 {r.fechaFinReserva}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>🕐 {r.horaFinReserva}</div>
+                        </div>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {filteredReservas.length === 0 && (
+                  <tr>
+                    <td colSpan="14" style={{ textAlign: "center", padding: "2rem", color: "#6b7280" }}>
+                      {searchTerm
+                        ? "No se encontraron reservas que coincidan con la búsqueda"
+                        : "No hay reservas activas"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

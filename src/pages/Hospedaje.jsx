@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import axiosInstance from "@/libs/axiosInstance";
+import { filtrarPorCampos } from "@/libs/utils"
 
 const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesped, onCheckoutHuespedes, fetchHabitaciones, fetchReservas }) => {
   const [selectedIds, setSelectedIds] = useState([])
@@ -9,7 +10,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     apellidos: "",
     dni: "",
     habitacion: "",
-    medioPago: "",
+    pago: "",
     monto: "",
     descuento: "0",
     huespedes: "1",
@@ -59,6 +60,45 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     fetchReservas()
   }, [])
 
+  // Efecto para consultar visitas hospedadas y aplicar descuento automático
+  useEffect(() => {
+    const fetchVisitasYDescuento = async () => {
+      if (form.dni && form.dni.length === 8 && /^\d{8}$/.test(form.dni)) {
+        try {
+          const res = await axiosInstance.get(`http://localhost:8000/api/usuarios/${form.dni}/visitas-hospedadas/`)
+          const totalVisitas = res.data?.total_visitas_hospedadas || 0
+          // Si tiene 5 visitas, aplicar 10% de descuento
+          if (totalVisitas >= 5) {
+            setForm((prev) => ({
+              ...prev,
+              descuento: "10"
+            }))
+          } else {
+            setForm((prev) => ({
+              ...prev,
+              descuento: "0"
+            }))
+          }
+        } catch (err) {
+          // Si hay error, no aplicar descuento
+          setForm((prev) => ({
+            ...prev,
+            descuento: "0"
+          }))
+        }
+      } else {
+        // Si el DNI no es válido, no aplicar descuento
+        setForm((prev) => ({
+          ...prev,
+          descuento: "0"
+        }))
+      }
+    }
+    fetchVisitasYDescuento()
+    // Solo cuando cambia el DNI
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.dni])
+
   const handleInputChange = (field, value) => {
     setForm((prev) => {
       const newForm = { ...prev, [field]: value }
@@ -90,14 +130,22 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     }, 3000)
   }
 
+  const MEDIOS_PAGO_VALIDOS = ["efectivo", "tarjeta", "yape", "plin"];
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // Validar que el medio de pago sea uno de los permitidos
+    if (!form.pago || !MEDIOS_PAGO_VALIDOS.includes(form.pago)) {
+      showToast("Por favor selecciona un medio de pago válido", "error")
+      return
+    }
 
     if (
       (!usuarioExistente && (!form.nombres.trim() || !form.apellidos.trim())) ||
       !form.dni.trim() ||
       !form.habitacion.trim() ||
-      !form.medioPago ||
+      !form.pago ||
       !form.monto ||
       !form.huespedes ||
       !form.diasHospedaje
@@ -141,6 +189,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
       numero_huespedes: Number(form.huespedes),
       dias: Number(form.diasHospedaje),
       dni_admin: dniAdmin,
+      pago: form.pago, // aseguramos que siempre se envía el campo pago
     };
 
     // Solo incluir nombres y apellidos si no es usuario existente
@@ -192,7 +241,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
         nombre: usuarioExistente ? `Usuario DNI: ${form.dni}` : `${form.nombres} ${form.apellidos}`,
         dni: form.dni,
         habitacion: form.habitacion,
-        medioPago: form.medioPago,
+        pago: form.pago,
         monto: Number.parseFloat(form.monto),
         montoTotal: Number.parseFloat(form.montoTotal),
         estancia: "activa",
@@ -214,7 +263,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
         apellidos: "",
         dni: "",
         habitacion: "",
-        medioPago: "",
+        pago: "",
         monto: "",
         descuento: "0",
         huespedes: "1",
@@ -313,12 +362,6 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((selectedId) => selectedId !== id)))
   }
 
-  // Función para formatear fecha y hora desde string ISO
-  function formatearFecha(fechaIso) {
-    if (!fechaIso) return "";
-    const fechaObj = new Date(fechaIso);
-    return fechaObj.toLocaleDateString("es-PE");
-  }
   function formatearFechaHora(fechaIso) {
     if (!fechaIso) return { fecha: "", hora: "" };
     const fechaObj = new Date(fechaIso);
@@ -340,7 +383,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
       habitacion: `${res.habitacion_numero} - ${res.habitacion_tipo}`,
       huespedes: res.numero_huespedes,
       diasHospedaje: res.total_noches,
-      medioPago: res.medio_pago || '',
+      pago: res.pago || '',
       monto: Number(res.precio_noche) || 0,
       montoTotal: Number(res.total_pagar) || 0,
       descuento: Number(res.descuento) || 0,
@@ -358,19 +401,10 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
     };
   });
 
+  // --- FILTRADO REUTILIZABLE DE HUÉSPEDES/RESERVAS ---
   const filteredHuespedes = reservasBackend.length > 0
-    ? reservasMapeadas.filter(
-        (huesped) =>
-          (huesped.nombre?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-          (huesped.dni || "").includes(searchTerm) ||
-          (huesped.habitacion?.toLowerCase() || "").includes(searchTerm.toLowerCase()),
-      )
-    : huespedes.filter(
-        (huesped) =>
-          huesped.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          huesped.dni.includes(searchTerm) ||
-          huesped.habitacion.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
+    ? filtrarPorCampos(reservasMapeadas, searchTerm, ["nombre", "dni", "habitacion"])
+    : filtrarPorCampos(huespedes, searchTerm, ["nombre", "dni", "habitacion"]);
 
   // Unificar huéspedes locales y backend (evitar duplicados por id)
   const todosHuespedes = reservasBackend.length > 0
@@ -380,7 +414,8 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
   // Sumar correctamente el total de huéspedes y activos SOLO con la fuente principal
   const huespedesTotales = todosHuespedes.reduce((total, h) => total + (Number(h.huespedes) || 1), 0);
   const huespedesActivos = todosHuespedes.filter((h) => h.estancia === "activa").reduce((total, h) => total + (Number(h.huespedes) || 1), 0);
-  const ingresoTotal = todosHuespedes.reduce((total, h) => total + ((h.montoTotal || h.monto) * (1 - (h.descuento || 0) / 100)), 0)
+  // El ingreso total debe ser la suma directa de montoTotal (ya con descuento aplicado) o monto si no existe
+  const ingresoTotal = todosHuespedes.reduce((total, h) => total + (Number(h.montoTotal) || Number(h.monto) || 0), 0)
 
   return (
     <>
@@ -540,14 +575,13 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
               <label className="form-label">Medio de Pago *</label>
               <select
                 className="form-input"
-                value={form.medioPago}
-                onChange={(e) => handleInputChange("medioPago", e.target.value)}
+                value={form.pago}
+                onChange={(e) => handleInputChange("pago", e.target.value)}
                 required
               >
                 <option value="">Selecciona método</option>
                 <option value="efectivo">Efectivo</option>
                 <option value="tarjeta">Tarjeta</option>
-                <option value="transferencia">Transferencia</option>
                 <option value="yape">Yape</option>
                 <option value="plin">Plin</option>
               </select>
@@ -581,9 +615,12 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
                 readOnly
                 style={{ backgroundColor: "#f0f9ff", cursor: "not-allowed", fontWeight: "600" }}
               />
+              {/* Mostrar descuento y mensaje si aplica */}
               {form.diasHospedaje && form.monto && (
-                <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                  {form.diasHospedaje} día(s) con {form.descuento}% descuento
+                <div style={{ fontSize: "0.75rem", color: form.descuento > 0 ? "#059669" : "#6b7280", marginTop: "0.25rem" }}>
+                  {form.descuento > 0
+                    ? `${form.diasHospedaje} día(s) con ${form.descuento}% descuento por fidelidad`
+                    : `${form.diasHospedaje} día(s) sin descuento`}
                 </div>
               )}
             </div>
@@ -683,7 +720,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
                         {huesped.diasHospedaje || 1} 📅
                       </span>
                     </td>
-                    <td style={{ textTransform: "capitalize", color: "#1a202c" }}>{huesped.medioPago}</td>
+                    <td style={{ textTransform: "capitalize", color: "#1a202c" }}>{huesped.pago}</td>
                     <td style={{ color: "#1a202c" }}>
                       <div>S/ {((huesped.montoTotal || huesped.monto)).toFixed(2)}</div>
                       {huesped.descuento > 0 && (
