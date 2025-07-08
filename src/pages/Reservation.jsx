@@ -1,11 +1,12 @@
-import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HotelRooms from './HotelRooms';
+import React, { useState, useEffect } from "react";
+import { useSSEHabitaciones } from '@/libs/useSSEHabitaciones';
 import {
   BedSingle,
   BedDouble,
@@ -16,70 +17,103 @@ import {
   Coffee,
 } from "lucide-react";
 
+const mapEstado = (estadoNum) => {
+  switch (estadoNum) {
+    case 1:
+      return "disponible";
+    case 2:
+      return "ocupado";
+    case 3:
+      return "mantenimiento";
+    default:
+      return "desconocido";
+  }
+};
+
+// Función para agrupar las habitaciones por piso
+const agruparPorPiso = (habitaciones) => {
+  const agrupadas = {};
+  
+  habitaciones.forEach((h) => {
+    // Extraer piso del código (ej: "HAB101" -> Piso 1)
+    const piso = `Piso ${h.codigo.charAt(3)}`;
+    
+    if (!agrupadas[piso]) {
+      agrupadas[piso] = [];
+    }
+    
+    agrupadas[piso].push({
+      nombre: h.codigo,
+      estado: mapEstado(h.estado),
+      tipo: h.tipo || "estandar",
+      precio: h.precio || 200,
+      imagen: `/src/assets/${h.tipo || "estandar"}.jpg`,
+      tag: h.tipo === "suite" ? "Premium" : null
+    });
+  });
+  
+  return agrupadas;
+};
+
 function Reservation() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modalCroquisAbierto, setModalCroquisAbierto] = useState(false);
+  const [habitacionesPorPiso, setHabitacionesPorPiso] = useState({});
 
-  const habitacionesPorPiso = {
-    "Piso 1": [
-      {
-        nombre: "Habitación 101",
-        descripcion: "Suite de lujo con jacuzzi.",
-        estado: "disponible",
-        tipo: "suite",
-        imagen: "/src/assets/suite1.jpg",
-        precio: 420,
-        tag: "Premium",
-      },
-      {
-        nombre: "Habitación 102",
-        descripcion: "Matrimonial con vista al mar.",
-        estado: "ocupado",
-        tipo: "matrimonial",
-        imagen: "/src/assets/matrimonial.jpg",
-        precio: 350,
-        tag: null,
-      },
-      {
-        nombre: "Habitación 103",
-        descripcion: "Estándar acogedora.",
-        estado: "disponible",
-        tipo: "estandar",
-        imagen: "/src/assets/estandar.jpg",
-        precio: 280,
-        tag: null,
-      },
-    ],
-    "Piso 2": [
-      {
-        nombre: "Habitación 201",
-        descripcion: "Doble elegante con escritorio.",
-        estado: "mantenimiento",
-        tipo: "doble",
-        imagen: "/src/assets/doble.jpg",
-        precio: 320,
-        tag: "Más Popular",
-      },
-      {
-        nombre: "Habitación 202",
-        descripcion: "Matrimonial con balcón.",
-        estado: "disponible",
-        tipo: "matrimonial",
-        imagen: "/src/assets/matrimonial2.jpg",
-        precio: 360,
-        tag: null,
-      },
-      {
-        nombre: "Habitación 203",
-        descripcion: "Suite presidencial.",
-        estado: "ocupado",
-        tipo: "suite",
-        imagen: "/src/assets/suite2.jpg",
-        precio: 500,
-        tag: "Premium",
-      },
-    ],
+useEffect(() => {
+  // Cargar todas las habitaciones inicialmente
+  fetch("http://localhost:8000/api/habitaciones/listar/")
+    .then(res => res.json())
+    .then(data => {
+      const agrupadoPorPiso = agruparPorPiso(data);
+      setHabitacionesPorPiso(agrupadoPorPiso);
+    })
+    .catch(err => console.error("Error cargando habitaciones:", err));
+
+  // Escuchar los cambios por SSE
+  const eventSource = new EventSource("http://localhost:8000/api/habitaciones/sse/habitaciones-dashboard/");
+
+  eventSource.onmessage = (event) => {
+    try {
+      // Si `data.cambios` existe → es parcial (SSE), si es array → es inicial (desde cache)
+      const data = JSON.parse(event.data);
+      if (Array.isArray(data)) {
+        const agrupado = agruparPorPiso(data);
+        setHabitacionesPorPiso(agrupado);
+      } else if (Array.isArray(data.cambios)) {
+        // aplicar cambios
+      }
+      const cambios = data.cambios;
+
+      if (Array.isArray(cambios)) {
+        setHabitacionesPorPiso((prev) => {
+          const actualizadas = { ...prev };
+          cambios.forEach(({ codigo, estado }) => {
+            for (const piso in actualizadas) {
+              actualizadas[piso] = actualizadas[piso].map((h) =>
+                h.nombre === codigo
+                  ? { ...h, estado: mapEstado(estado) }
+                  : h
+              );
+            }
+          });
+          return actualizadas;
+        });
+      }
+    } catch (err) {
+      console.error("Error parseando SSE:", err);
+    }
   };
+
+  eventSource.onerror = (err) => {
+    console.error("SSE error:", err);
+    eventSource.close();
+  };
+
+  return () => {
+    eventSource.close();
+  };
+}, []);
 
   const getTipoIcono = (tipo) => {
     switch (tipo) {

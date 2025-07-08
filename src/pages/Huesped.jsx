@@ -26,10 +26,9 @@ function Huesped() {
     estado: "Confirmado",
   };
 
-  
   const [reservasAnteriores, setReservasAnteriores] = useState([
     {
-      id: 1,
+      id: 1, // 🔁 Este ID debe ser el de CuentaCobrar
       fechaIngreso: "2024-12-20",
       fechaSalida: "2024-12-24",
       tipo: "Matrimonial",
@@ -79,6 +78,28 @@ function Huesped() {
     },
   ]);
 
+  // 🔁 Nueva función para iniciar el pago
+  const handlePagar = async (cuentaId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/pagos/pagar/${cuentaId}/`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      if (response.redirected) {
+        window.location.href = response.url; // Redirige a Stripe Checkout
+      } else {
+        const text = await response.text();
+        alert("⚠️ " + text);
+      }
+    } catch (error) {
+      console.error("Error al intentar pagar:", error);
+      alert("❌ Ocurrió un error al iniciar el pago.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -176,11 +197,10 @@ function Huesped() {
                         </span>
                       </p>
 
-                      {/* Botones si está pendiente */}
                       {reserva.estado === "Pendiente" && (
                         <div className="mt-2 flex gap-2">
                           <button
-                            onClick={() => window.location.href = "https://checkout.stripe.com/pay"} // o tu enlace real
+                            onClick={() => handlePagar(reserva.id)}
                             className="bg-blue-600 text-white px-3 py-1 text-xs rounded hover:bg-blue-700"
                           >
                             Pagar
