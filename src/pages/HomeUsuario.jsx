@@ -1,29 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { getUsuarioActual } from '@/features/auth/getUsuarioActual';
+import React from 'react';
 import { useAuth } from '@/features/auth/useAuth';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
 const HomeUsuario = () => {
-  const [usuario, setUsuario] = useState(null);
+  // Leer usuario directamente del localStorage
+  const usuario = JSON.parse(localStorage.getItem('usuario'));
   const { logout } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    async function fetchUsuario() {
-      const data = await getUsuarioActual();
-      if (data) {
-        setUsuario(data);
-        localStorage.setItem('usuario', JSON.stringify(data));
-      }
-    }
-    fetchUsuario();
-  }, []);
-
   const handleLogout = () => {
     logout();
-    localStorage.removeItem('usuario');
-    localStorage.removeItem('token'); 
     navigate('/login');
   };
 

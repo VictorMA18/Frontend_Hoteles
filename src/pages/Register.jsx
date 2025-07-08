@@ -33,8 +33,7 @@ function Register() {
       return;
     }
     try {
-      // Ajusta los nombres de los campos según tu API de Django
-      const response = await axios.post("http://localhost:8000/huespedes/registro/", {
+      const response = await axios.post("http://localhost:8000/api/usuarios/register/", {
         nombres: formData.nombres,
         apellidos: formData.apellidos,
         dni: formData.dni,
