@@ -20,7 +20,7 @@ function Huesped() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [mostrarHistorial, setMostrarHistorial] = useState(true); // Lo dejamos abierto por defecto
-
+  
   // Obtener datos del usuario autenticado desde localStorage
   const usuario = JSON.parse(localStorage.getItem("usuario"));
 
@@ -64,6 +64,33 @@ function Huesped() {
       window.location.reload(); // O puedes refrescar solo las reservas si prefieres
     } catch (err) {
       alert("Error al cancelar la reserva. Intenta nuevamente.");
+    }
+  };
+
+
+  const handlePagar = async (cuentaId) => {
+    try {
+      // Obtener el token del usuario autenticado (si aplica)
+      const usuario = JSON.parse(localStorage.getItem("usuario") || "{}")
+      const token = usuario?.access || usuario?.token || ""
+      const response = await fetch(
+        `http://localhost:8000/api/pagos/pagar/${cuentaId}/`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        }
+      );
+      const data = await response.json();
+      if (data.checkout_url) {
+        // Redirige directamente a Stripe, no uses fetch a la URL de Stripe
+        window.location.href = data.checkout_url;
+      } else {
+        alert("⚠️ No se pudo obtener la URL de pago. Intenta nuevamente.");
+      }
+    } catch (error) {
+      console.error("Error al intentar pagar:", error);
+      alert("❌ Ocurrió un error al iniciar el pago.");
     }
   };
 
@@ -151,134 +178,142 @@ function Huesped() {
                 <h2 className="text-lg font-semibold text-gray-800 mb-2">
                   Reservas anteriores
                 </h2>
-                {loading ? (
-                  <p className="text-gray-500">Cargando reservas...</p>
-                ) : error ? (
-                  <p className="text-red-500">{error}</p>
-                ) : reservas.length === 0 ? (
-                  <p className="text-gray-500">No tienes reservas anteriores.</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {reservas.map((reserva) => {
-                      // Obtener nombre legible para tipo y estado
-                      let tipoReserva =
-                        reserva.tipo_reserva_nombre ||
-                        TIPOS_RESERVA[reserva.id_tipo_reserva] ||
-                        reserva.id_tipo_reserva ||
-                        "-";
-                      let nombreEstado =
-                        reserva.estado_reserva_nombre ||
-                        ESTADOS_RESERVA[reserva.id_estado_reserva] ||
-                        reserva.id_estado_reserva ||
-                        "-";
-                      // Definir colores para los estados de reserva
-                      let colorEstado = "text-gray-600";
-                      if (typeof nombreEstado !== "string") {
-                        nombreEstado = String(nombreEstado ?? "-");
-                      }
-                      switch (nombreEstado.toLowerCase()) {
-                        case "pendiente":
-                          colorEstado = "text-yellow-500"; // Amarillo
-                          break;
-                        case "confirmado":
-                          colorEstado = "text-green-600"; // Verde
-                          break;
-                        case "cancelado":
-                          colorEstado = "text-red-600"; // Rojo
-                          break;
-                        case "finalizado":
-                          colorEstado = "text-blue-600"; // Azul
-                          break;
-                        default:
-                          colorEstado = "text-gray-600";
-                      }
-                      return (
-                        <li
-                          key={reserva.id}
-                          className="border border-gray-200 rounded-md p-3 text-sm text-gray-700 relative"
-                        >
-                          <p>
-                            <span className="font-semibold">Habitación:</span>{" "}
-                            {reserva.codigo_habitacion}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Tipo de reserva:</span>{" "}
-                            {tipoReserva}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Estado de reserva:</span>{" "}
-                            <span className={colorEstado}>{nombreEstado}</span>
-                          </p>
-                          <p>
-                            <span className="font-semibold">Check-in:</span>{" "}
-                            {reserva.fecha_checkin_programado
-                              ? new Date(
-                                  reserva.fecha_checkin_programado
-                                ).toLocaleDateString()
-                              : "-"}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Check-out:</span>{" "}
-                            {reserva.fecha_checkout_programado
-                              ? new Date(
-                                  reserva.fecha_checkout_programado
-                                ).toLocaleDateString()
-                              : "-"}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Huéspedes:</span>{" "}
-                            {reserva.numero_huespedes}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Precio por noche:</span>{" "}
-                            S/{reserva.precio_noche}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Total noches:</span>{" "}
-                            {reserva.total_noches ?? "-"}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Subtotal:</span>{" "}
-                            S/{reserva.subtotal ?? "-"}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Total descuento:</span>{" "}
-                            S/{typeof reserva.descuento !== 'undefined' && reserva.descuento !== null ? reserva.descuento : '0'}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Total a pagar:</span>{" "}
-                            S/{reserva.total_pagar ?? "-"}
-                          </p>
-                          {reserva.impuestos && Number(reserva.impuestos) > 0 && (
+                <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                  {loading ? (
+                    <p className="text-gray-500">Cargando reservas...</p>
+                  ) : error ? (
+                    <p className="text-red-500">{error}</p>
+                  ) : reservas.length === 0 ? (
+                    <p className="text-gray-500">No tienes reservas anteriores.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {reservas.map((reserva) => {
+                        // Obtener nombre legible para tipo y estado
+                        let tipoReserva =
+                          reserva.tipo_reserva_nombre ||
+                          TIPOS_RESERVA[reserva.id_tipo_reserva] ||
+                          reserva.id_tipo_reserva ||
+                          "-";
+                        let nombreEstado =
+                          reserva.estado_reserva_nombre ||
+                          ESTADOS_RESERVA[reserva.id_estado_reserva] ||
+                          reserva.id_estado_reserva ||
+                          "-";
+                        // Definir colores para los estados de reserva
+                        let colorEstado = "text-gray-600";
+                        if (typeof nombreEstado !== "string") {
+                          nombreEstado = String(nombreEstado ?? "-");
+                        }
+                        switch (nombreEstado.toLowerCase()) {
+                          case "pendiente":
+                            colorEstado = "text-yellow-500"; // Amarillo
+                            break;
+                          case "confirmado":
+                            colorEstado = "text-green-600"; // Verde
+                            break;
+                          case "cancelado":
+                            colorEstado = "text-red-600"; // Rojo
+                            break;
+                          case "finalizado":
+                            colorEstado = "text-blue-600"; // Azul
+                            break;
+                          default:
+                            colorEstado = "text-gray-600";
+                        }
+                        return (
+                          <li
+                            key={reserva.id}
+                            className="border border-gray-200 rounded-md p-3 text-sm text-gray-700 relative"
+                          >
                             <p>
-                              <span className="font-semibold">Impuestos:</span>{" "}
-                              S/{reserva.impuestos}
+                              <span className="font-semibold">Habitación:</span>{" "}
+                              {reserva.codigo_habitacion}
                             </p>
-                          )}
-                          {reserva.observaciones && (
                             <p>
-                              <span className="font-semibold">Obs.:</span>{" "}
-                              {reserva.observaciones}
+                              <span className="font-semibold">Tipo de reserva:</span>{" "}
+                              {tipoReserva}
                             </p>
-                          )}
-                          {reserva.estado_reserva_nombre?.toLowerCase() ===
-                            "pendiente" ||
-                          reserva.id_estado_reserva === 1 ? (
-                            <div className="absolute bottom-3 right-3">
-                              <button
-                                className="bg-red-500 hover:bg-red-600 text-white px-4 py-1 rounded-md text-xs font-semibold shadow"
-                                onClick={() => handleCancelarReserva(reserva.id)}
-                                type="button"
-                              >
-                                Cancelar reserva
-                              </button>
-                            </div>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                            <p>
+                              <span className="font-semibold">Estado de reserva:</span>{" "}
+                              <span className={colorEstado}>{nombreEstado}</span>
+                            </p>
+                            <p>
+                              <span className="font-semibold">Check-in:</span>{" "}
+                              {reserva.fecha_checkin_programado
+                                ? new Date(
+                                    reserva.fecha_checkin_programado
+                                  ).toLocaleDateString()
+                                : "-"}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Check-out:</span>{" "}
+                              {reserva.fecha_checkout_programado
+                                ? new Date(
+                                    reserva.fecha_checkout_programado
+                                  ).toLocaleDateString()
+                                : "-"}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Huéspedes:</span>{" "}
+                              {reserva.numero_huespedes}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Precio por noche:</span>{" "}
+                              S/{reserva.precio_noche}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Total noches:</span>{" "}
+                              {reserva.total_noches ?? "-"}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Subtotal:</span>{" "}
+                              S/{reserva.subtotal ?? "-"}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Total descuento:</span>{" "}
+                              S/{typeof reserva.descuento !== 'undefined' && reserva.descuento !== null ? reserva.descuento : '0'}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Total a pagar:</span>{" "}
+                              S/{reserva.total_pagar ?? "-"}
+                            </p>
+                            {reserva.impuestos && Number(reserva.impuestos) > 0 && (
+                              <p>
+                                <span className="font-semibold">Impuestos:</span>{" "}
+                                S/{reserva.impuestos}
+                              </p>
+                            )}
+                            {reserva.observaciones && (
+                              <p>
+                                <span className="font-semibold">Obs.:</span>{" "}
+                                {reserva.observaciones}
+                              </p>
+                            )}
+                            {reserva.estado_reserva_nombre?.toLowerCase() ===
+                              "pendiente" ||
+                            reserva.id_estado_reserva === 1 ? (
+                              <div className="absolute bottom-3 right-3 ">
+                                <button
+                                  onClick={() => handlePagar("ef17a755-8e75-48d1-8d8d-bc70fbf1fdd7")}
+                                  className="bg-blue-600 text-white px-3 py-1 text-xs rounded hover:bg-blue-700 mr-3"
+                                >
+                                  Pagar
+                                </button>
+                                <button
+                                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-1 rounded-md text-xs font-semibold shadow"
+                                  onClick={() => handleCancelarReserva(reserva.id)}
+                                  type="button"
+                                >
+                                  Cancelar reserva
+                                </button>
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </>
             )}
           </section>

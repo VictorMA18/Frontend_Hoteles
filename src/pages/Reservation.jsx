@@ -209,9 +209,7 @@ function Reservation() {
             >
               Hacer Reserva
             </button>
-            <button className="bg-white text-black px-6 py-3 rounded-lg text-lg border border-gray-300 shadow-md hover:bg-gray-100">
-              Ver Croquis
-            </button>
+
           </div>
         </div>
       </section>
@@ -347,7 +345,8 @@ function Reservation() {
                   fecha_checkout_programado: formReserva.checkout ? `${formReserva.checkout}T12:00:00Z` : null,
                   numero_huespedes: Number(formReserva.huespedes),
                   precio_noche: String(habitacionSeleccionada.precio_actual || habitacionSeleccionada.tipo_info?.precio_base || ''),
-                  observaciones: null
+                  observaciones: null,
+                  pago: "transferencia", // Siempre enviar el campo pago como transferencia para reservas online
                 };
                 const data = await crearReserva(body);
                 if (data) {
@@ -448,7 +447,7 @@ function Reservation() {
                     />
                     <div className="relative">
                       <img
-                        src={"/src/assets/default-room.jpg"}
+                        src={"/src/assets/Hoteles.jpeg"}
                         alt={
                           `Habitación ${habitacion.numero_habitacion}`
                         }
