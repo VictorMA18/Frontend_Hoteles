@@ -58,6 +58,9 @@ function Reservation() {
     huespedes: 1,
   });
   const [totalReserva, setTotalReserva] = useState(null);
+  const [totalReservaSinDescuento, setTotalReservaSinDescuento] = useState(null);
+  const [descuentoReserva, setDescuentoReserva] = useState(0);
+  const [totalVisitas, setTotalVisitas] = useState(0);
   const { crearReserva, loading: loadingCrear, error: errorCrear, success: successCrear } = useCrearReserva();
   const [habitacionesDisponibles, setHabitacionesDisponibles] = useState([]);
   const [buscando, setBuscando] = useState(false);
@@ -65,6 +68,23 @@ function Reservation() {
 
   // Obtener usuario autenticado de localStorage
   const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
+
+  // Obtener total_visitas actualizado del backend
+  useEffect(() => {
+    const fetchPerfil = async () => {
+      try {
+        const res = await axiosInstance.get('http://localhost:8000/api/usuarios/perfil/');
+        if (res.data && typeof res.data.total_visitas === 'number') {
+          setTotalVisitas(res.data.total_visitas);
+        } else {
+          setTotalVisitas(0);
+        }
+      } catch (e) {
+        setTotalVisitas(0);
+      }
+    };
+    fetchPerfil();
+  }, []);
 
   const getTipoIcono = (tipo) => {
     switch (tipo?.toLowerCase()) {
@@ -103,18 +123,43 @@ function Reservation() {
       const fechaFin = new Date(formReserva.checkout);
       const diffMs = fechaFin - fechaInicio;
       const diffDias = Math.max(Math.ceil(diffMs / (1000 * 60 * 60 * 24)), 0);
+      let total = null;
+      let descuento = 0;
       if (diffDias > 0) {
-        setTotalReserva(precio * diffDias);
+        total = precio * diffDias;
+        if (totalVisitas >= 10) {
+          descuento = 0.15;
+        } else if (totalVisitas >= 5) {
+          descuento = 0.10;
+        }
+        setTotalReservaSinDescuento(total);
+        setDescuentoReserva(descuento);
+        setTotalReserva(Number((total * (1 - descuento)).toFixed(2)));
       } else {
         setTotalReserva(null);
+        setTotalReservaSinDescuento(null);
+        setDescuentoReserva(0);
       }
     } else {
       setTotalReserva(null);
+      setTotalReservaSinDescuento(null);
+      setDescuentoReserva(0);
     }
-  }, [formReserva.checkin, formReserva.checkout, habitacionSeleccionada]);
+  }, [formReserva.checkin, formReserva.checkout, habitacionSeleccionada, totalVisitas]);
 
   // Formulario de reserva para una habitación específica
-  const handleReservarClick = (habitacion) => {
+  const handleReservarClick = async (habitacion) => {
+    // Al hacer click, obtener perfil actualizado
+    try {
+      const res = await axiosInstance.get('http://localhost:8000/api/usuarios/perfil/');
+      if (res.data && typeof res.data.total_visitas === 'number') {
+        setTotalVisitas(res.data.total_visitas);
+      } else {
+        setTotalVisitas(0);
+      }
+    } catch (e) {
+      setTotalVisitas(0);
+    }
     setHabitacionSeleccionada(habitacion);
     setFormReserva({
       nombre: '',
@@ -338,11 +383,15 @@ function Reservation() {
                   alert('La reserva debe ser al menos de 1 día. El check-out debe ser posterior al check-in.');
                   return;
                 }
+                // Definir pad y now aquí para evitar errores de referencia
+                const now = new Date();
+                const pad = (n) => n.toString().padStart(2, '0');
+                const horaActual = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
                 const body = {
                   codigo_habitacion: habitacionSeleccionada.codigo || habitacionSeleccionada.codigo_habitacion,
                   id_tipo_reserva: 2, // Online
-                  fecha_checkin_programado: formReserva.checkin ? `${formReserva.checkin}T14:00:00Z` : null,
-                  fecha_checkout_programado: formReserva.checkout ? `${formReserva.checkout}T12:00:00Z` : null,
+                  fecha_checkin_programado: formReserva.checkin ? `${formReserva.checkin}T${horaActual}` : null,
+                  fecha_checkout_programado: formReserva.checkout ? `${formReserva.checkout}T${horaActual}` : null,
                   numero_huespedes: Number(formReserva.huespedes),
                   precio_noche: String(habitacionSeleccionada.precio_actual || habitacionSeleccionada.tipo_info?.precio_base || ''),
                   observaciones: null,
@@ -402,7 +451,15 @@ function Reservation() {
               </div>
               <div className="text-right text-lg font-bold text-blue-700">
                 {totalReserva !== null && (
-                  <span>Total: S/ {totalReserva}</span>
+                  <>
+                    {descuentoReserva > 0 && totalReservaSinDescuento !== null ? (
+                      <div className="text-sm text-gray-500 mb-1">
+                        <span className="line-through">Total sin descuento: S/ {totalReservaSinDescuento}</span><br />
+                        <span className="text-green-600 font-semibold">Descuento aplicado: {descuentoReserva * 100}%</span>
+                      </div>
+                    ) : null}
+                    <span>Total: S/ {totalReserva?.toFixed(2)}</span>
+                  </>
                 )}
               </div>
               <Button

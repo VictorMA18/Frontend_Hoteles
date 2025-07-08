@@ -31,8 +31,8 @@ function Huesped() {
     email: usuario ? usuario.email : "-",
     celular: usuario ? usuario.celular : "-",
     rol: usuario ? usuario.rol : "-",
-    fechaIngreso: "2025-07-10", // Puedes reemplazar por datos reales si los tienes
-    fechaSalida: "2025-07-14",
+    fechaIngreso: usuario.created_at, // Puedes reemplazar por datos reales si los tienes
+    fechaSalida: usuario.updated_at,
     tipoHabitacion: "Doble",
     estado: "Confirmado",
   };
@@ -139,11 +139,11 @@ function Huesped() {
             </div>
             <div className="flex items-center space-x-3 text-gray-700">
               <Calendar className="w-5 h-5 text-blue-600" />
-              <span>Ingreso: {datosHuesped.fechaIngreso}</span>
+              <span>Ingreso: {new Date(datosHuesped.fechaIngreso).toLocaleDateString()}</span>
             </div>
             <div className="flex items-center space-x-3 text-gray-700">
               <Calendar className="w-5 h-5 text-blue-600" />
-              <span>Salida: {datosHuesped.fechaSalida}</span>
+              <span>Salida: {new Date(datosHuesped.fechaSalida).toLocaleDateString()}</span>
             </div>
 
             <div className="pt-4">
@@ -242,7 +242,7 @@ function Huesped() {
                               {reserva.fecha_checkin_programado
                                 ? new Date(
                                     reserva.fecha_checkin_programado
-                                  ).toLocaleDateString()
+                                  ).toLocaleString()
                                 : "-"}
                             </p>
                             <p>
@@ -250,7 +250,7 @@ function Huesped() {
                               {reserva.fecha_checkout_programado
                                 ? new Date(
                                     reserva.fecha_checkout_programado
-                                  ).toLocaleDateString()
+                                  ).toLocaleString()
                                 : "-"}
                             </p>
                             <p>

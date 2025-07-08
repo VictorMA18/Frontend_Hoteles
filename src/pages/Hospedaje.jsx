@@ -66,9 +66,16 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
       if (form.dni && form.dni.length === 8 && /^\d{8}$/.test(form.dni)) {
         try {
           const res = await axiosInstance.get(`http://localhost:8000/api/usuarios/${form.dni}/visitas-hospedadas/`)
+          console.log("Visitas hospedadas:", res.data)
           const totalVisitas = res.data?.total_visitas_hospedadas || 0
           // Si tiene 5 visitas, aplicar 10% de descuento
-          if (totalVisitas >= 5) {
+          if (totalVisitas >= 10) {
+            setForm((prev) => ({
+              ...prev,
+              descuento: "15"
+            }))
+          }
+          else if (totalVisitas >= 5) {
             setForm((prev) => ({
               ...prev,
               descuento: "10"
@@ -231,6 +238,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
           'Content-Type': 'application/json',
         }
       });
+      console.log("Respuesta del backend:", response.data)
 
       showToast("Registro exitoso del huésped", "success")
       
@@ -618,8 +626,9 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
               {/* Mostrar descuento y mensaje si aplica */}
               {form.diasHospedaje && form.monto && (
                 <div style={{ fontSize: "0.75rem", color: form.descuento > 0 ? "#059669" : "#6b7280", marginTop: "0.25rem" }}>
+                  {console.log(form.descuento)}
                   {form.descuento > 0
-                    ? `${form.diasHospedaje} día(s) con ${form.descuento}% descuento por fidelidad`
+                    ? `${form.diasHospedaje} día(s) con ${form.descuento}% descuento`
                     : `${form.diasHospedaje} día(s) sin descuento`}
                 </div>
               )}
@@ -680,6 +689,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
               </thead>
               <tbody>
                 {filteredHuespedes.map((huesped) => (
+                  console.log("Huespedes", huesped),
                   <tr key={huesped.id}>
                     <td>
                       <input
@@ -724,7 +734,7 @@ const Hospedaje = ({ huespedes, setHuespedes, habitacionesData, onRegistrarHuesp
                     <td style={{ color: "#1a202c" }}>
                       <div>S/ {((huesped.montoTotal || huesped.monto)).toFixed(2)}</div>
                       {huesped.descuento > 0 && (
-                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>-{(huesped.montoTotal+huesped.descuento) / huesped.descuento}% desc.</div>
+                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>-{((huesped.descuento * 100) / huesped.monto) / huesped.diasHospedaje}% desc.</div>
                       )}
                     </td>
                     <td>

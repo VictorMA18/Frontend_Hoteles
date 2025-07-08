@@ -90,7 +90,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
           id: r.id,
           nombres: `${r.usuario_nombres || ''} ${r.usuario_apellidos || ''}`.trim() || `Usuario DNI: ${r.usuario_dni}`,
           dni: r.usuario_dni,
-          habitacion: r.habitacion_numero || r.habitacion,
+          habitacion: `${r.habitacion_numero} - ${r.habitacion_tipo}`,
           huespedes: r.numero_huespedes || r.huespedes || 1,
           medioPago: r.medio_pago || '',
           pago: r.pago || '',
@@ -284,7 +284,13 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
           const res = await axiosInstance.get(`http://localhost:8000/api/usuarios/${form.dni}/visitas-hospedadas/`)
           const totalVisitas = res.data?.total_visitas_hospedadas || 0
           // Si tiene 5 visitas, aplicar 10% de descuento
-          if (totalVisitas >= 5) {
+          if (totalVisitas >= 10) {
+            setForm((prev) => ({
+              ...prev,
+              descuento: "15"
+            }))
+          }
+          else if (totalVisitas >= 5) {
             setForm((prev) => ({
               ...prev,
               descuento: "10"
@@ -296,6 +302,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
             }))
           }
         } catch (err) {
+          // Si hay error, no aplicar descuento
           setForm((prev) => ({
             ...prev,
             descuento: "0"
@@ -788,13 +795,14 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
               </thead>
               <tbody>
                 {filteredReservas.map((r) => (
+                  console.log("Reserva:", r), // Log para depuración
                   <tr key={r.id}>
                     <td>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(r.id)}
                         onChange={(e) => handleSelectReserva(r.id, e.target.checked)}
-                        disabled={r.estado === "Cancelada"}
+                        disabled={r.estado === "Cancelada" || r.estado === "Finalizada"}
                       />
                     </td>
                     <td style={{ fontWeight: "500", color: "#1a202c" }}>{r.nombres}</td>
@@ -832,7 +840,7 @@ const Reservas = ({ habitacionesData, roomTypeMapping, onConfirmarReservas, fetc
                     <td style={{ color: "#1a202c" }}>
                       <div>S/ {((r.montoTotal || r.monto)).toFixed(2)}</div>
                       {r.descuento > 0 && (
-                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>-{(r.montoTotal+r.descuento) / r.descuento}% desc.</div>
+                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>-{((r.descuento * 100) / r.monto) / r.dias }% desc.</div>
                       )}
                     </td>
                     <td>
